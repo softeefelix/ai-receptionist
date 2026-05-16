@@ -725,6 +725,27 @@ def route_call(call):
             note_text = _format_jobber_note(call)
             create_jobber_note(req['id'], note_text)
             print(f'[Jobber] Note added (transcript + voice chat URL)')
+
+            req_id    = req['id']
+            req_title = req['title']
+            send_email(
+                f'[Jobber] New request created: {req_title}',
+                f'Request ID: {req_id}\nTitle: {req_title}\n\n{overview}\n\n---\n{notes}',
+                f"""<html><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+max-width:600px;margin:0 auto;padding:24px;color:#222">
+<div style="border-left:4px solid #1a8a1a;padding-left:16px;margin-bottom:20px">
+  <h2 style="margin:0 0 4px;color:#1a8a1a;font-size:18px">New Jobber Request Created</h2>
+  <p style="margin:0;color:#666;font-size:13px">{req_title}</p>
+</div>
+<p style="font-size:13px;color:#555;margin:0 0 16px">
+  <strong>Request ID:</strong> <code>{req_id}</code>
+</p>
+<pre style="background:#f5f5f5;padding:16px;border-radius:6px;font-size:13px;
+white-space:pre-wrap;word-break:break-word">{overview}</pre>
+<hr style="border:none;border-top:1px solid #eee;margin:20px 0">
+<pre style="font-size:12px;color:#666;white-space:pre-wrap">{notes}</pre>
+</body></html>""",
+            )
         except Exception as e:
             print(f'[Jobber] Error — falling back to email: {e}')
             send_email(f'[Mister Softee] Jobber error for {from_number}',
