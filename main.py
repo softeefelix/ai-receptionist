@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""AI Receptionist poller — run every 5 minutes via cron.
+"""AI Receptionist poller — run every 5 minutes, 7 AM–10 PM PT via cron.
 
 Cron entry:
-    */5 * * * * /Users/felixtarnarider/bin/ai-receptionist-poll.sh
+    */5 7-22 * * * /Users/felixtarnarider/bin/ai-receptionist-poll.sh
 """
 
 import json
@@ -42,7 +42,8 @@ JOBBER_API_VERSION   = '2026-02-17'
 JOBBER_TOKEN_URL     = 'https://api.getjobber.com/api/oauth/token'
 STATE_FILE           = Path(__file__).parent / 'state.json'
 FAILED_FILE          = Path(__file__).parent / 'failed_routes.jsonl'
-STAGING_AGENT_ID     = 'agent_ccf0da35e33729da19de79c464'
+PROD_AGENT_ID        = 'agent_ccf0da35e33729da19de79c464'   # new flow (promoted from staging)
+STAGING_AGENT_ID     = 'agent_ccf0da35e33729da19de79c464'   # same until a new staging agent exists
 SHADOW_LOG_FILE      = Path(__file__).parent / 'shadow_log.jsonl'
 PROCESSED_TTL_MS          = 48 * 60 * 60 * 1000   # prune processed IDs older than 48 hours
 SLACK_WEBHOOK_URL         = os.environ.get('SLACK_WEBHOOK_URL', '')
