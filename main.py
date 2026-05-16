@@ -283,10 +283,19 @@ _BOOKING_KEYWORDS = [
     'catering', 'cater', 'hire', 'rent', 'rental', 'private',
     'birthday', 'wedding', 'corporate', 'celebration',
     'reserve', 'reservation', 'schedule',
-    'event', 'parties',
+    'event', 'parties', 'function',
 ]
 
-# Caller is returning a missed call — route to email even if booking words appear in context
+# Subset of _BOOKING_KEYWORDS that unambiguously signal a NEW booking, even in callback context.
+# 'event', 'schedule', 'reservation' are intentionally excluded — they often refer to existing ones.
+_STRONG_BOOKING_KEYWORDS = {
+    'book', 'booking',
+    'catering', 'cater', 'hire', 'rent', 'rental', 'private',
+    'birthday', 'wedding', 'corporate', 'celebration',
+    'reserve', 'parties', 'function',
+}
+
+# Caller is returning a missed call — route to email unless strong booking intent is clear
 _RETURNING_CALL_PHRASES = [
     'returning a call', 'returning your call', 'returning the call',
     'calling back', 'call back', 'missed call', 'received a call',
@@ -303,11 +312,49 @@ _BOOKING_NOUNS = ['reservation', 'booking', 'appointment', 'event']
 # Caller explicitly left no actionable message — safe to ignore
 _NO_MESSAGE_INDICATORS = [
     'did not leave', 'no specific message', 'did not provide',
-    'declined to provide', 'no message left',
+    'declined to provide', 'no message left', 'did not specify',
+    'did not have a clear request', 'no coherent request',
+]
+
+# Caller is specifically trying to reach a named person — email even if no message left
+_TRYING_TO_REACH_PHRASES = [
+    'trying to reach',
+    'trying to get in touch',
+    'called to reach',
+    'calling to reach',
 ]
 
 # Retell agent writes this exact string when the call was a location/app lookup
 _LOCATION_INQUIRY_MARKER = 'location inquiry - directed to app'
+
+# Agent transferred the caller or fully resolved their inquiry — no follow-up needed
+_TRANSFERRED_PHRASES = [
+    'was transferred',
+    'transferred accordingly',
+    'transferred to the',
+    'transferred to an',
+    'was connected to',
+    'connected to an operator',
+    'was relieved when',
+    'were informed that',
+    'was informed that',
+    'informed about the app',
+    'were already using',
+    'was already using',
+    'already using to locate',
+]
+
+# Caller's question was self-resolved via the app — no follow-up needed
+_APP_RESOLUTION_PHRASES = [
+    'decided to download',
+    'will download the app',
+    'going to download',
+    'use the app for',
+    'using the app for',
+    'download the app for',
+    'directed to the app',
+    'recommended using the',
+]
 
 def classify_call(call):
     """Returns ('jobber' | 'email' | 'ignore', reason).
@@ -326,9 +373,11 @@ def classify_call(call):
     if in_voicemail:
         return 'email', 'voicemail'
 
-    # Agent explicitly flagged this as a location/app lookup
+    # Agent explicitly flagged this as a location/app lookup, or caller resolved it via app
     if _LOCATION_INQUIRY_MARKER in msg_lower:
         return 'ignore', 'location/app inquiry — agent handled'
+    if any(phrase in msg_lower for phrase in _APP_RESOLUTION_PHRASES):
+        return 'ignore', 'caller resolved inquiry via app — no follow-up needed'
 
     # No message at all
     if not caller_message:
@@ -336,17 +385,27 @@ def classify_call(call):
             return 'email', 'no message but caller provided email — expecting follow-up'
         return 'ignore', 'no caller message — agent handled inquiry'
 
+    # Caller is trying to reach someone — notify, unless they explicitly said they'll wait
+    if any(phrase in msg_lower for phrase in _TRYING_TO_REACH_PHRASES):
+        if 'will wait' in msg_lower or 'no one available' in msg_lower:
+            return 'ignore', 'caller tried to reach but will wait — no action needed'
+        return 'email', 'caller trying to reach someone — needs follow-up'
+
     # Caller explicitly left no actionable message
     if any(phrase in msg_lower for phrase in _NO_MESSAGE_INDICATORS):
         return 'ignore', 'caller left no specific message'
 
-    # Returning a missed call — email even if booking words appear in context
+    # Returning a missed call — email, UNLESS strong new-booking intent is present
     if any(phrase in msg_lower for phrase in _RETURNING_CALL_PHRASES):
+        if any(kw in msg_lower for kw in _STRONG_BOOKING_KEYWORDS):
+            return 'jobber', 'callback context but primary intent is a new booking'
         return 'email', 'caller returning a missed call'
 
-    # Confirming/checking on an existing booking
+    # Confirming/checking on an existing booking — use word boundaries to avoid
+    # subword false positives (e.g. 'event' inside 'seventy')
+    _booking_noun_re = re.compile(r'\b(?:' + '|'.join(_BOOKING_NOUNS) + r')\b')
     if (any(verb in msg_lower for verb in _EXISTING_BOOKING_VERBS) and
-            any(noun in msg_lower for noun in _BOOKING_NOUNS)):
+            _booking_noun_re.search(msg_lower)):
         # Caller was successfully transferred — nothing left to follow up
         if 'transferred' in msg_lower or 'was connected' in msg_lower:
             return 'ignore', 'existing booking check — caller was transferred'
@@ -355,6 +414,10 @@ def classify_call(call):
     # New booking/event inquiry — only check caller_message to avoid false positives
     if any(kw in msg_lower for kw in _BOOKING_KEYWORDS):
         return 'jobber', 'booking/service keywords detected'
+
+    # Call was handled by agent or transferred — no follow-up needed
+    if any(phrase in msg_lower for phrase in _TRANSFERRED_PHRASES):
+        return 'ignore', 'call was transferred or agent-handled — no follow-up needed'
 
     # Caller left a substantive message but no booking intent → email.
     # Note: call_successful tracks whether the agent completed its task, not whether
