@@ -1,0 +1,26 @@
+services:
+  - type: cron
+    name: ai-receptionist-poll
+    runtime: python
+    schedule: "*/5 * * * *"
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    envVars:
+      - key: RETELL_API_KEY
+        sync: false
+      - key: AGENTMAIL_API_KEY
+        sync: false
+      - key: AGENTMAIL_INBOX
+        sync: false
+      - key: NOTIFY_EMAIL
+        sync: false
+      - key: JOBBER_CLIENT_ID
+        sync: false
+      - key: JOBBER_CLIENT_SECRET
+        sync: false
+      - key: SLACK_WEBHOOK_URL
+        sync: false
+      - key: DB_URL
+        sync: false
+      - key: JOBBER_TOKENS_JSON
+        sync: false

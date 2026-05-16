@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
-"""AI Receptionist poller — run every 5 minutes, 7 AM–10 PM PT via cron.
+"""AI Receptionist poller — run every 5 minutes, 7 AM–10 PM PT.
 
-Cron entry:
+Local cron entry (laptop):
     */5 7-22 * * * /Users/felixtarnarider/bin/ai-receptionist-poll.sh
+
+Cloud (Render cron job):
+    Schedule: */5 * * * *  (operating-hours check handled in code)
+    Set DB_URL env var to enable PostgreSQL-backed state.
 """
 
 import json
@@ -50,11 +54,79 @@ SLACK_WEBHOOK_URL         = os.environ.get('SLACK_WEBHOOK_URL', '')
 REPEAT_CALLER_THRESHOLD   = 3
 REPEAT_CALLER_WINDOW_MS   = 4 * 60 * 60 * 1000   # look back 4 hours
 REPEAT_CALLER_ALERT_TTL_MS = 24 * 60 * 60 * 1000  # re-alert cooldown per number
+DB_URL               = os.environ.get('DB_URL', '')   # Render PostgreSQL; enables cloud-safe state
+
+
+# ── Database (optional — local file fallback when DB_URL is unset) ────────────
+
+_db_connection = None
+
+def _get_db():
+    global _db_connection
+    if _db_connection is not None:
+        return _db_connection
+    if not DB_URL:
+        return None
+    try:
+        import psycopg2
+        _db_connection = psycopg2.connect(DB_URL)
+        _ensure_schema(_db_connection)
+        return _db_connection
+    except Exception as e:
+        print(f'[DB] Could not connect: {e}')
+        return None
+
+def _ensure_schema(db):
+    cur = db.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS processed_calls (
+            call_id TEXT PRIMARY KEY,
+            processed_at BIGINT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS poll_metadata (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS shadow_log_entries (
+            id SERIAL PRIMARY KEY,
+            call_id TEXT,
+            from_number TEXT,
+            ts BIGINT,
+            prod_node TEXT,
+            staging_node TEXT,
+            diff BOOLEAN,
+            routed_to TEXT,
+            route_reason TEXT,
+            sentiment TEXT,
+            summary TEXT,
+            caller_message TEXT,
+            caller_email TEXT,
+            logged_at BIGINT
+        );
+        CREATE TABLE IF NOT EXISTS jobber_tokens (
+            id INTEGER PRIMARY KEY,
+            tokens_json TEXT NOT NULL,
+            updated_at BIGINT NOT NULL
+        );
+    """)
+    db.commit()
 
 
 # ── State ─────────────────────────────────────────────────────────────────────
 
 def load_state():
+    db = _get_db()
+    if db:
+        cur = db.cursor()
+        cur.execute("SELECT key, value FROM poll_metadata WHERE key IN ('last_run_at', 'repeat_alerts')")
+        meta = {row[0]: row[1] for row in cur.fetchall()}
+        last_run_at   = int(meta['last_run_at']) if 'last_run_at' in meta else int(time.time() * 1000) - 300_000
+        repeat_alerts = json.loads(meta['repeat_alerts']) if 'repeat_alerts' in meta else {}
+        cutoff = int(time.time() * 1000) - PROCESSED_TTL_MS
+        cur.execute("SELECT call_id, processed_at FROM processed_calls WHERE processed_at > %s", (cutoff,))
+        processed_ids = {row[0]: row[1] for row in cur.fetchall()}
+        return {'last_run_at': last_run_at, 'processed_ids': processed_ids, 'repeat_alerts': repeat_alerts}
+
     if STATE_FILE.exists():
         state = json.loads(STATE_FILE.read_text())
         # Migrate: old format stored processed_ids as a flat list
@@ -65,8 +137,29 @@ def load_state():
     return {'last_run_at': int(time.time() * 1000) - 300_000, 'processed_ids': {}}
 
 def save_state(state):
-    now = int(time.time() * 1000)
+    now    = int(time.time() * 1000)
     cutoff = now - PROCESSED_TTL_MS
+    db = _get_db()
+    if db:
+        cur = db.cursor()
+        cur.execute("""
+            INSERT INTO poll_metadata (key, value) VALUES ('last_run_at', %s)
+            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+        """, (str(state.get('last_run_at', now)),))
+        cur.execute("""
+            INSERT INTO poll_metadata (key, value) VALUES ('repeat_alerts', %s)
+            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+        """, (json.dumps(state.get('repeat_alerts', {})),))
+        for call_id, ts in state.get('processed_ids', {}).items():
+            if ts > cutoff:
+                cur.execute("""
+                    INSERT INTO processed_calls (call_id, processed_at) VALUES (%s, %s)
+                    ON CONFLICT (call_id) DO NOTHING
+                """, (call_id, ts))
+        cur.execute("DELETE FROM processed_calls WHERE processed_at <= %s", (cutoff,))
+        db.commit()
+        return
+
     state['processed_ids'] = {
         cid: ts for cid, ts in state.get('processed_ids', {}).items() if ts > cutoff
     }
@@ -125,6 +218,15 @@ def retell_get_call(call_id):
 # ── Jobber ────────────────────────────────────────────────────────────────────
 
 def _jobber_load_tokens():
+    db = _get_db()
+    if db:
+        cur = db.cursor()
+        cur.execute("SELECT tokens_json FROM jobber_tokens WHERE id = 1")
+        row = cur.fetchone()
+        if row:
+            return json.loads(row[0])
+        # DB has no tokens yet — fall through to seed from env or file
+
     if JOBBER_TOKENS_FILE.exists():
         return json.loads(JOBBER_TOKENS_FILE.read_text())
     env_json = os.environ.get('JOBBER_TOKENS_JSON')
@@ -133,7 +235,16 @@ def _jobber_load_tokens():
     return None
 
 def _jobber_save_tokens(tokens):
-    JOBBER_TOKENS_FILE.write_text(json.dumps(tokens, indent=2))
+    db = _get_db()
+    if db:
+        cur = db.cursor()
+        cur.execute("""
+            INSERT INTO jobber_tokens (id, tokens_json, updated_at) VALUES (1, %s, %s)
+            ON CONFLICT (id) DO UPDATE SET tokens_json = EXCLUDED.tokens_json, updated_at = EXCLUDED.updated_at
+        """, (json.dumps(tokens), int(time.time() * 1000)))
+        db.commit()
+    else:
+        JOBBER_TOKENS_FILE.write_text(json.dumps(tokens, indent=2))
 
 def get_jobber_token(force_refresh=False):
     tokens = _jobber_load_tokens()
@@ -670,8 +781,26 @@ def shadow_log(call):
         'caller_message': custom.get('caller_message', ''),
         'caller_email':   custom.get('caller_email', ''),
     }
-    with open(SHADOW_LOG_FILE, 'a') as f:
-        f.write(json.dumps(entry) + '\n')
+
+    db = _get_db()
+    if db:
+        cur = db.cursor()
+        cur.execute("""
+            INSERT INTO shadow_log_entries
+                (call_id, from_number, ts, prod_node, staging_node, diff,
+                 routed_to, route_reason, sentiment, summary, caller_message, caller_email, logged_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, (
+            entry['call_id'], entry['from'], entry['ts'],
+            entry['prod_node'], entry['staging_node'], entry['diff'],
+            entry['routed_to'], entry['route_reason'], entry['sentiment'],
+            entry['summary'], entry['caller_message'], entry['caller_email'],
+            int(time.time() * 1000),
+        ))
+        db.commit()
+    else:
+        with open(SHADOW_LOG_FILE, 'a') as f:
+            f.write(json.dumps(entry) + '\n')
 
     tag = 'DIFF' if is_diff else 'same'
     print(f'[Shadow] [{tag}] {call.get("call_id")} prod={prod_node!r} staging={staging!r}')
@@ -695,24 +824,34 @@ def _send_repeat_caller_alert(phone, entries):
 
 def _check_repeat_callers(state):
     """Read shadow_log and alert if any number called 3+ times in the last 4 hours."""
-    if not SHADOW_LOG_FILE.exists():
-        return
-
     now           = int(time.time() * 1000)
     window_start  = now - REPEAT_CALLER_WINDOW_MS
     repeat_alerts = state.get('repeat_alerts', {})
 
     recent = []
-    for line in SHADOW_LOG_FILE.read_text().splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            e = json.loads(line)
-            if e.get('ts', 0) >= window_start and e.get('from'):
-                recent.append(e)
-        except json.JSONDecodeError:
-            pass
+    db = _get_db()
+    if db:
+        cur = db.cursor()
+        cur.execute("""
+            SELECT call_id, from_number, ts, routed_to, caller_message, summary
+            FROM shadow_log_entries WHERE ts >= %s AND from_number IS NOT NULL
+        """, (window_start,))
+        for row in cur.fetchall():
+            recent.append({'call_id': row[0], 'from': row[1], 'ts': row[2],
+                           'routed_to': row[3], 'caller_message': row[4], 'summary': row[5]})
+    elif SHADOW_LOG_FILE.exists():
+        for line in SHADOW_LOG_FILE.read_text().splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                e = json.loads(line)
+                if e.get('ts', 0) >= window_start and e.get('from'):
+                    recent.append(e)
+            except json.JSONDecodeError:
+                pass
+    else:
+        return
 
     by_number = {}
     for e in recent:
@@ -776,7 +915,19 @@ def _retry_failed(processed_ids):
 
     save_failed(remaining)
 
+def _in_operating_hours():
+    """7 AM–10 PM PT. Used only when running in cloud (DB_URL set) so cron runs 24/7."""
+    if not DB_URL:
+        return True  # local cron handles the window via crontab syntax
+    utc_hour = datetime.now(timezone.utc).hour
+    pt_hour  = (utc_hour - 7) % 24   # approximate PDT (UTC-7); off by 1h in winter
+    return 7 <= pt_hour < 22
+
 def poll():
+    if not _in_operating_hours():
+        print('[Poll] Outside operating hours (7 AM–10 PM PT) — skipping')
+        return
+
     state         = load_state()
     processed_ids = state.get('processed_ids', {})
 
