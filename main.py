@@ -78,38 +78,43 @@ def _get_db():
 
 def _ensure_schema(db):
     cur = db.cursor()
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS processed_calls (
-            call_id TEXT PRIMARY KEY,
-            processed_at BIGINT NOT NULL
-        );
-        CREATE TABLE IF NOT EXISTS poll_metadata (
-            key TEXT PRIMARY KEY,
-            value TEXT NOT NULL
-        );
-        CREATE TABLE IF NOT EXISTS shadow_log_entries (
-            id SERIAL PRIMARY KEY,
-            call_id TEXT,
-            from_number TEXT,
-            ts BIGINT,
-            prod_node TEXT,
-            staging_node TEXT,
-            diff BOOLEAN,
-            routed_to TEXT,
-            route_reason TEXT,
-            sentiment TEXT,
-            summary TEXT,
-            caller_message TEXT,
-            caller_email TEXT,
-            logged_at BIGINT
-        );
-        CREATE TABLE IF NOT EXISTS jobber_tokens (
-            id INTEGER PRIMARY KEY,
-            tokens_json TEXT NOT NULL,
-            updated_at BIGINT NOT NULL
-        );
-    """)
-    db.commit()
+    try:
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS processed_calls (
+                call_id TEXT PRIMARY KEY,
+                processed_at BIGINT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS poll_metadata (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS shadow_log_entries (
+                id SERIAL PRIMARY KEY,
+                call_id TEXT,
+                from_number TEXT,
+                ts BIGINT,
+                prod_node TEXT,
+                staging_node TEXT,
+                diff BOOLEAN,
+                routed_to TEXT,
+                route_reason TEXT,
+                sentiment TEXT,
+                summary TEXT,
+                caller_message TEXT,
+                caller_email TEXT,
+                logged_at BIGINT
+            );
+            CREATE TABLE IF NOT EXISTS jobber_tokens (
+                id INTEGER PRIMARY KEY,
+                tokens_json TEXT NOT NULL,
+                updated_at BIGINT NOT NULL
+            );
+        """)
+        db.commit()
+    except Exception as e:
+        # claude_reporting lacks CREATE privilege — tables created by migrate_db.py
+        db.rollback()
+        print(f'[DB] Schema init skipped (tables pre-exist): {e}')
 
 
 # ── State ─────────────────────────────────────────────────────────────────────
