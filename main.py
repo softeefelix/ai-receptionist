@@ -216,7 +216,7 @@ def create_client(name, phone):
         raise RuntimeError(f'clientCreate errors: {errors}')
     return result['data']['clientCreate']['client']['id']
 
-def create_jobber_request(client_id, title, notes):
+def create_jobber_request(client_id, title, overview):
     result = jobber_query("""
         mutation($input: RequestCreateInput!) {
           requestCreate(input: $input) {
@@ -225,11 +225,25 @@ def create_jobber_request(client_id, title, notes):
           }
         }
     """, {'input': {'clientId': client_id, 'title': title,
-                    'assessment': {'instructions': notes}}})
+                    'assessment': {'instructions': overview}}})
     errors = result.get('data', {}).get('requestCreate', {}).get('userErrors', [])
     if errors:
         raise RuntimeError(f'requestCreate errors: {errors}')
     return result['data']['requestCreate']['request']
+
+
+def create_jobber_note(request_id, message):
+    result = jobber_query("""
+        mutation($requestId: EncodedId!, $input: RequestCreateNoteInput!) {
+          requestCreateNote(requestId: $requestId, input: $input) {
+            requestNote { id }
+            userErrors { message path }
+          }
+        }
+    """, {'requestId': request_id, 'input': {'message': message}})
+    errors = result.get('data', {}).get('requestCreateNote', {}).get('userErrors', [])
+    if errors:
+        raise RuntimeError(f'requestCreateNote errors: {errors}')
 
 
 # ── AgentMail ─────────────────────────────────────────────────────────────────
@@ -428,6 +442,7 @@ def classify_call(call):
 # ── Routing ───────────────────────────────────────────────────────────────────
 
 def _format_notes(call):
+    """Plain-text summary used for email routing."""
     analysis = call.get('call_analysis') or {}
     custom   = analysis.get('custom_analysis_data') or {}
     ts       = call.get('start_timestamp', 0)
@@ -450,6 +465,57 @@ def _format_notes(call):
     if call.get('recording_url'):
         lines.append(f'Recording: {call["recording_url"]}')
     lines.append(f'Call ID: {call.get("call_id", "")}')
+    return '\n'.join(lines)
+
+
+def _format_jobber_overview(call):
+    """Structured overview text for the Jobber request instructions field."""
+    analysis = call.get('call_analysis') or {}
+    custom   = analysis.get('custom_analysis_data') or {}
+    ts       = call.get('start_timestamp', 0)
+    when     = (datetime.fromtimestamp(ts / 1000, tz=timezone.utc)
+                .astimezone().strftime('%Y-%m-%d %I:%M %p %Z') if ts else 'unknown')
+
+    guest_count = custom.get('event_guest_count') or '—'
+    event_dt    = custom.get('event_datetime')    or '—'
+    event_loc   = custom.get('event_location')    or '—'
+    summary     = analysis.get('call_summary')    or '—'
+    message     = custom.get('caller_message')    or '—'
+
+    lines = [
+        f'How many guests: {guest_count}',
+        f'Date & time:     {event_dt}',
+        f'Location:        {event_loc}',
+        '',
+        f'Summary:',
+        summary,
+        '',
+        f'Caller\'s request:',
+        message,
+        '',
+        '---',
+        f'Call time: {when}',
+        f'Phone:     {call.get("from_number", "Unknown")}',
+    ]
+    if custom.get('caller_email'):
+        lines.append(f'Email:     {custom["caller_email"]}')
+    return '\n'.join(lines)
+
+
+def _format_jobber_note(call):
+    """Note content: voice chat URL at top, then full transcript."""
+    public_log  = call.get('public_log_url') or ''
+    recording   = call.get('recording_url')  or ''
+    transcript  = call.get('transcript')     or '(no transcript available)'
+
+    lines = []
+    if public_log:
+        lines.append(f'Voice chat: {public_log}')
+    if recording:
+        lines.append(f'Recording:  {recording}')
+    lines.append('')
+    lines.append('--- Transcript ---')
+    lines.append(transcript)
     return '\n'.join(lines)
 
 def _format_email_html(call, tag):
@@ -534,9 +600,14 @@ def route_call(call):
                 client_id = create_client(caller_name, from_number)
                 print(f'[Jobber] Created client {client_id} for {from_number}')
 
-            display = caller_name if caller_name else from_number
-            req = create_jobber_request(client_id, f'Inquiry from {display}', notes)
+            display  = caller_name if caller_name else from_number
+            overview = _format_jobber_overview(call)
+            req      = create_jobber_request(client_id, f'Inquiry from {display}', overview)
             print(f'[Jobber] Request created: {req["title"]} (id={req["id"]})')
+
+            note_text = _format_jobber_note(call)
+            create_jobber_note(req['id'], note_text)
+            print(f'[Jobber] Note added (transcript + voice chat URL)')
         except Exception as e:
             print(f'[Jobber] Error — falling back to email: {e}')
             send_email(f'[Mister Softee] Jobber error for {from_number}',
