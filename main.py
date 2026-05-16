@@ -928,6 +928,23 @@ def _in_operating_hours():
     pt_hour  = (utc_hour - 7) % 24   # approximate PDT (UTC-7); off by 1h in winter
     return 7 <= pt_hour < 22
 
+def _send_poll_summary(counts, since_str):
+    """Post a Slack summary after each poll run."""
+    total = sum(counts.values())
+    if total == 0:
+        return  # nothing new — stay silent
+    lines = [f':telephone_receiver: *Poll complete* — {total} new call(s) since {since_str}']
+    if counts.get('jobber'):
+        lines.append(f'  :spiral_note_pad: Jobber requests created: {counts["jobber"]}')
+    if counts.get('email'):
+        lines.append(f'  :email: Emails sent: {counts["email"]}')
+    if counts.get('ignore'):
+        lines.append(f'  :mute: Ignored (agent handled): {counts["ignore"]}')
+    if counts.get('error'):
+        lines.append(f'  :warning: Routing errors: {counts["error"]}')
+    send_slack('\n'.join(lines))
+
+
 def poll():
     if not _in_operating_hours():
         print('[Poll] Outside operating hours (7 AM–10 PM PT) — skipping')
@@ -943,8 +960,10 @@ def poll():
     since_ts = state.get('last_run_at', 0) - 120_000
 
     calls = retell_list_calls(since_ts)
-    ts_str = datetime.fromtimestamp(since_ts / 1000).strftime('%H:%M:%S')
+    ts_str = datetime.fromtimestamp(since_ts / 1000).strftime('%I:%M %p')
     print(f'[Poll] {len(calls)} calls since {ts_str}')
+
+    counts = {'jobber': 0, 'email': 0, 'ignore': 0, 'error': 0}
 
     for call in calls:
         call_id = call.get('call_id', '')
@@ -965,9 +984,11 @@ def poll():
             print(f'[Poll] Skipping {call_id} — call_analysis not ready')
             continue
 
+        action, _ = classify_call(call)
         try:
             route_call(call)
             processed_ids[call_id] = int(time.time() * 1000)
+            counts[action] = counts.get(action, 0) + 1
         except Exception as e:
             print(f'[Poll] Routing error for {call_id} — queuing for retry: {e}')
             existing = load_failed()
@@ -980,6 +1001,7 @@ def poll():
             })
             save_failed(existing)
             processed_ids[call_id] = int(time.time() * 1000)
+            counts['error'] += 1
 
         shadow_log(call)
 
@@ -990,6 +1012,8 @@ def poll():
     _check_repeat_callers(state)
 
     save_state(state)
+
+    _send_poll_summary(counts, ts_str)
 
 
 if __name__ == '__main__':
