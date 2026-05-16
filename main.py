@@ -2,7 +2,7 @@
 """AI Receptionist poller — run every 5 minutes via cron.
 
 Cron entry:
-    */5 * * * * /usr/bin/python3 /Users/felixtarnarider/Projects/ai-receptionist/main.py >> /Users/felixtarnarider/Projects/ai-receptionist/poll.log 2>&1
+    */5 * * * * /Users/felixtarnarider/bin/ai-receptionist-poll.sh
 """
 
 import json
