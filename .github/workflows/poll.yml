@@ -1,0 +1,37 @@
+name: AI Receptionist Poll
+
+on:
+  schedule:
+    # Every 5 minutes, 7 AM–10 PM PT (14:00–05:00 UTC, split across midnight)
+    - cron: '*/5 14-23 * * *'
+    - cron: '*/5 0-4 * * *'
+  workflow_dispatch:  # allow manual trigger from GitHub UI
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run poll
+        env:
+          RETELL_API_KEY:       ${{ secrets.RETELL_API_KEY }}
+          AGENTMAIL_API_KEY:    ${{ secrets.AGENTMAIL_API_KEY }}
+          AGENTMAIL_INBOX:      ${{ secrets.AGENTMAIL_INBOX }}
+          NOTIFY_EMAIL:         ${{ secrets.NOTIFY_EMAIL }}
+          JOBBER_CLIENT_ID:     ${{ secrets.JOBBER_CLIENT_ID }}
+          JOBBER_CLIENT_SECRET: ${{ secrets.JOBBER_CLIENT_SECRET }}
+          SLACK_WEBHOOK_URL:    ${{ secrets.SLACK_WEBHOOK_URL }}
+          DB_URL:               ${{ secrets.DB_URL }}
+          JOBBER_TOKENS_JSON:   ${{ secrets.JOBBER_TOKENS_JSON }}
+        run: python main.py
