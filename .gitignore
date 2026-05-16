@@ -1,0 +1,15 @@
+# Secrets and credentials
+.env
+jobber_tokens.json
+
+# Runtime state (machine-specific, regenerated on each run)
+state.json
+failed_routes.jsonl
+poll.log
+
+# Shadow log is runtime data — large and append-only
+# Keep annotations (human-reviewed knowledge) but not the raw log
+shadow_log.jsonl
+
+# Claude local settings (personal overrides)
+.claude/settings.local.json

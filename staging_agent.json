@@ -1,0 +1,72 @@
+{
+  "agent_id": "agent_ccf0da35e33729da19de79c464",
+  "channel": "voice",
+  "last_modification_timestamp": 1778937510246,
+  "agent_name": "Conversation Flow Agent  staging",
+  "response_engine": {
+    "type": "conversation-flow",
+    "conversation_flow_id": "conversation_flow_55c68a8438eb",
+    "version": 0
+  },
+  "language": "en-US",
+  "data_storage_setting": "everything",
+  "opt_in_signed_url": false,
+  "end_call_after_silence_ms": 21000,
+  "version": 0,
+  "assigned_tags": [],
+  "is_published": false,
+  "post_call_analysis_model": "gpt-4.1-mini",
+  "pii_config": {
+    "mode": "post_call",
+    "categories": []
+  },
+  "analysis_successful_prompt": "Evaluate whether the agent had a successful call with the user. For a successful call, the agent should have a complete conversation with user, finished the task, and have not ran into technical issues, or caused user frustration. Besides, the agent was not blocked by a call screen or encountered voicemail.",
+  "analysis_summary_prompt": "Write a 1-3 sentence summary of the call based on the call transcript. Should capture the important information and actions taken during the call.",
+  "analysis_user_sentiment_prompt": "Evaluate user's sentiment, mood and satisfaction level.",
+  "post_call_analysis_data": [
+    {
+      "type": "system-presets",
+      "name": "call_summary",
+      "description": "Write a 1-3 sentence summary of the call based on the call transcript. Should capture the important information and actions taken during the call."
+    },
+    {
+      "type": "system-presets",
+      "name": "call_successful",
+      "description": "Evaluate whether the agent had a successful call with the user. For a successful call, the agent should have a complete conversation with user, finished the task, and have not ran into technical issues, or caused user frustration. Besides, the agent was not blocked by a call screen or encountered voicemail."
+    },
+    {
+      "type": "system-presets",
+      "name": "user_sentiment",
+      "description": "Evaluate user's sentiment, mood and satisfaction level."
+    },
+    {
+      "name": "caller_first_name",
+      "type": "string",
+      "required": true,
+      "description": "Extract the caller's first name. Return empty string if none."
+    },
+    {
+      "name": "caller_last_name",
+      "type": "string",
+      "required": false,
+      "description": "Extract the caller's last name if mentioned. Return empty string if none."
+    },
+    {
+      "name": "caller_email",
+      "type": "string",
+      "required": false,
+      "description": "Extract the caller's email address if mentioned. Return empty string if none."
+    },
+    {
+      "name": "caller_message",
+      "type": "string",
+      "required": true,
+      "description": "Summarize the caller's request or reason for calling in a clean, concise paragraph using the caller's own words and intent. This should read like a message left for the business \u2014 what does the caller want or need? Include any relevant details they mentioned such as event dates, party size, location, specific items, or questions. If the call was just a location/app inquiry with no follow-up needed, write 'Location inquiry - directed to app.' If the caller had no substantive request, return empty string."
+    }
+  ],
+  "voice_id": "cartesia-Grace",
+  "max_call_duration_ms": 3600000,
+  "normalize_for_speech": false,
+  "allow_user_dtmf": true,
+  "user_dtmf_options": {}
+}

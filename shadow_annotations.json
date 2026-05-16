@@ -1,0 +1,350 @@
+{
+  "call_e51ba97f25106ca0dbab2e943c5": {
+    "correct_routing": "jobber",
+    "actual_routing": "jobber",
+    "note": "Lata Gopal \u2014 client appreciation event June 27",
+    "annotated_at": 1778941424
+  },
+  "call_00071f61bb4320cfb83349fdf18": {
+    "correct_routing": "jobber",
+    "actual_routing": "jobber",
+    "note": "Book truck June 20 San Jose event",
+    "annotated_at": 1778941424
+  },
+  "call_38d766fd20d85c90681e83674f8": {
+    "correct_routing": "email",
+    "actual_routing": "email",
+    "note": "Trying to reach Felix",
+    "annotated_at": 1778941424
+  },
+  "call_89f3d327c043aee07dd40948de8": {
+    "correct_routing": "jobber",
+    "actual_routing": "jobber",
+    "note": "George \u2014 birthday party May 16",
+    "annotated_at": 1778941424
+  },
+  "call_26385d53e8e276bc24d7801f7fe": {
+    "correct_routing": "jobber",
+    "actual_routing": "jobber",
+    "note": "Shannon Jager \u2014 PTA perfect attendance event quote",
+    "annotated_at": 1778941424
+  },
+  "call_6bdc1550c3eb74efe60741f4721": {
+    "correct_routing": "jobber",
+    "actual_routing": "jobber",
+    "note": "Janvi \u2014 school sponsorship/discount still an event request",
+    "annotated_at": 1778941424
+  },
+  "call_bd1a88bc7a16c3f63e114698e78": {
+    "correct_routing": "jobber",
+    "actual_routing": "jobber",
+    "note": "Darla Mercado \u2014 private event May 31",
+    "annotated_at": 1778941424
+  },
+  "call_611053eb6cc2d518064e0b1202f": {
+    "correct_routing": "jobber",
+    "actual_routing": "jobber",
+    "note": "Andrea Conroy \u2014 book truck June 6 SF",
+    "annotated_at": 1778941424
+  },
+  "call_d09ae39b091ec77c2338a8f08ea": {
+    "correct_routing": "jobber",
+    "actual_routing": "jobber",
+    "note": "Ronnie Ogas \u2014 function June 20",
+    "annotated_at": 1778941424
+  },
+  "call_c10c68d18efda7f6da77d97d0be": {
+    "correct_routing": "email",
+    "actual_routing": "jobber",
+    "note": "Lynn Lawson returning call for Logan \u2014 route stop request, not new event",
+    "annotated_at": 1778941424
+  },
+  "call_34b9840ef509372b9f528ea4fda": {
+    "correct_routing": "ignore",
+    "actual_routing": "ignore",
+    "note": "Transferred immediately, no message",
+    "annotated_at": 1778941424
+  },
+  "call_66fbebddd48975ef0be89b0292f": {
+    "correct_routing": "email",
+    "actual_routing": "jobber",
+    "note": "Denise Delacruz returning call \u2014 existing scheduled event, not new booking",
+    "annotated_at": 1778941424
+  },
+  "call_950940f34114d8cc19934a2827a": {
+    "correct_routing": "jobber",
+    "actual_routing": "jobber",
+    "note": "Daniel Chen \u2014 school site council event San Mateo",
+    "annotated_at": 1778941424
+  },
+  "call_d2e2cd2881109e7ddbe84e408df": {
+    "correct_routing": "jobber",
+    "actual_routing": "jobber",
+    "note": "David Rivera \u2014 pricing and availability for home event",
+    "annotated_at": 1778941424
+  },
+  "call_b968e04e9b9d8d5de99cd4d7bed": {
+    "correct_routing": "ignore",
+    "actual_routing": "ignore",
+    "note": "Hung up immediately at Master Node",
+    "annotated_at": 1778941424
+  },
+  "call_45f90c18506a21dfeac54bcec53": {
+    "correct_routing": "ignore",
+    "actual_routing": "ignore",
+    "note": "Transferred immediately, no message",
+    "annotated_at": 1778941424
+  },
+  "call_f28f59250841aa3ffed2d2448de": {
+    "correct_routing": "jobber",
+    "actual_routing": "jobber",
+    "note": "Kia Rivera \u2014 catering event tomorrow Fremont",
+    "annotated_at": 1778941424
+  },
+  "call_9acb0343a89413040334e721c2c": {
+    "correct_routing": "ignore",
+    "actual_routing": "ignore",
+    "note": "Truck location South SF \u2014 directed to app",
+    "annotated_at": 1778941424
+  },
+  "call_b2b7573487c47eda8309d22b6c7": {
+    "correct_routing": "jobber",
+    "actual_routing": "jobber",
+    "note": "Two-hour event booking hospital Castro Valley",
+    "annotated_at": 1778941424
+  },
+  "call_1f6e2e9ad036374fd2830154201": {
+    "correct_routing": "jobber",
+    "actual_routing": "jobber",
+    "note": "Monica \u2014 book truck Fremont Surgery Center today",
+    "annotated_at": 1778941424
+  },
+  "call_78b0113cb38e99d72adcf0be065": {
+    "correct_routing": "email",
+    "actual_routing": "email",
+    "note": "Wanted truck, transfer failed",
+    "annotated_at": 1778941424
+  },
+  "call_d7c45fe69e069394a394581f8cf": {
+    "correct_routing": "email",
+    "actual_routing": "jobber",
+    "note": "Andrew Rodriguez confirming existing reservation \u2014 agent could not access details",
+    "annotated_at": 1778941424
+  },
+  "call_c612df790411d947200e239a395": {
+    "correct_routing": "ignore",
+    "actual_routing": "ignore",
+    "note": "Same caller transferred immediately",
+    "annotated_at": 1778941424
+  },
+  "call_ea5357621970e506778debc7a8a": {
+    "correct_routing": "email",
+    "actual_routing": "email",
+    "note": "Same caller, wanted truck, transfer failed again",
+    "annotated_at": 1778941424
+  },
+  "call_e32c55125b4eefc3636252036ca": {
+    "correct_routing": "ignore",
+    "actual_routing": "ignore",
+    "note": "Fundraising follow-up \u2014 transferred successfully",
+    "annotated_at": 1778941424
+  },
+  "call_3cb81cbba91a37dea01261318d5": {
+    "correct_routing": "jobber",
+    "actual_routing": "jobber",
+    "note": "Doreen \u2014 schedule location stop Palo Alto High School",
+    "annotated_at": 1778941424
+  },
+  "call_f5e4f916c37a5618fa45656477b": {
+    "correct_routing": "jobber",
+    "actual_routing": "jobber",
+    "note": "Lata Gopal \u2014 real estate team event San Ramon",
+    "annotated_at": 1778941424
+  },
+  "call_6da59a6132763b56933059e40b3": {
+    "correct_routing": "jobber",
+    "actual_routing": "jobber",
+    "note": "Marge \u2014 catering event May 22 Walnut Creek",
+    "annotated_at": 1778941424
+  },
+  "call_78f72d49c3c3eb96960de9fec54": {
+    "correct_routing": "ignore",
+    "actual_routing": "ignore",
+    "note": "Set up a service \u2014 transferred successfully",
+    "annotated_at": 1778941424
+  },
+  "call_17412cff4e72584d2108b92a656": {
+    "correct_routing": "jobber",
+    "actual_routing": "jobber",
+    "note": "Marie McKigney \u2014 book truck May 21 Eden Medical",
+    "annotated_at": 1778941424
+  },
+  "call_cbdb0801dee358ab1e8bad1c37e": {
+    "correct_routing": "ignore",
+    "actual_routing": "jobber",
+    "note": "Confirming reservation \u2014 caller was transferred successfully, handled",
+    "annotated_at": 1778941424
+  },
+  "call_8e8e0e58215b7de78028c6708f0": {
+    "correct_routing": "jobber",
+    "actual_routing": "jobber",
+    "note": "Janvi \u2014 school sponsorship follow-up, still an event request",
+    "annotated_at": 1778941424
+  },
+  "call_10f8098260f5d1c489333662ed8": {
+    "correct_routing": "email",
+    "actual_routing": "ignore",
+    "note": "Susan Kokos \u2014 contract question, left phone number for callback",
+    "annotated_at": 1778941424
+  },
+  "call_d2b1ca0742614f12a741849aaf6": {
+    "correct_routing": "email",
+    "actual_routing": "email",
+    "note": "Wanted operator, transfer failed, left message",
+    "annotated_at": 1778941424
+  },
+  "call_d314fe005aca21cd0e53a04dff7": {
+    "correct_routing": "ignore",
+    "actual_routing": "ignore",
+    "note": "Location/app inquiry, End Call",
+    "annotated_at": 1778941424
+  },
+  "call_4cfcddd040fa2706db51eab7c88": {
+    "correct_routing": "email",
+    "actual_routing": "email",
+    "note": "Doreen \u2014 ice cream truck swap question, hung up before transfer",
+    "annotated_at": 1778941424
+  },
+  "call_08e87aa9168bb3ee86329bd8113": {
+    "correct_routing": "ignore",
+    "actual_routing": "ignore",
+    "note": "Confused caller, no coherent request",
+    "annotated_at": 1778941424
+  },
+  "call_45f0850fa96925607735902c830": {
+    "correct_routing": "email",
+    "actual_routing": "email",
+    "note": "Wanted Lenny, transfer failed",
+    "annotated_at": 1778941424
+  },
+  "call_7047d604a4877b3834b643f3bc9": {
+    "correct_routing": "ignore",
+    "actual_routing": "ignore",
+    "note": "Checking if anyone in office \u2014 did not leave a specific message",
+    "annotated_at": 1778941424
+  },
+  "call_298bcbf71d6e9517139ce4f060d": {
+    "correct_routing": "ignore",
+    "actual_routing": "ignore",
+    "note": "Asked for operator, transferred successfully",
+    "annotated_at": 1778941424
+  },
+  "call_d8ec8b86b259952fb247983e37d": {
+    "correct_routing": "jobber",
+    "actual_routing": "jobber",
+    "note": "Rates for two-hour event",
+    "annotated_at": 1778941424
+  },
+  "call_ecb942f523275e491f73880a595": {
+    "correct_routing": "email",
+    "actual_routing": "email",
+    "note": "Alameda location \u2014 app giving wrong info, wants callback",
+    "annotated_at": 1778941424
+  },
+  "call_608d40b4c547efa2164dd511ffa": {
+    "correct_routing": "email",
+    "actual_routing": "jobber",
+    "note": "Returning call from Sunny \u2014 false positive on word party in summary",
+    "annotated_at": 1778941424
+  },
+  "call_ecd0e8e6610700a93339547eb64": {
+    "correct_routing": "jobber",
+    "actual_routing": "jobber",
+    "note": "Book truck for next week",
+    "annotated_at": 1778941424
+  },
+  "call_c8461e995c420d2831cd933287c": {
+    "correct_routing": "ignore",
+    "actual_routing": "ignore",
+    "note": "Doreen follow-up on location stop \u2014 End Call, handled",
+    "annotated_at": 1778941424
+  },
+  "call_b500ffd9737e7ef724b1a8d664e": {
+    "correct_routing": "ignore",
+    "actual_routing": "ignore",
+    "note": "Asking if truck arrived \u2014 timing question, handled",
+    "annotated_at": 1778941424
+  },
+  "call_727f5150b41bba2075f8fd5797c": {
+    "correct_routing": "email",
+    "actual_routing": "email",
+    "note": "Off hours, wanted representative",
+    "annotated_at": 1778941424
+  },
+  "call_95be17d8900033c4218725f4947": {
+    "correct_routing": "ignore",
+    "actual_routing": "ignore",
+    "note": "No call data",
+    "annotated_at": 1778941424
+  },
+  "call_e2793306e5321bc2770fd4fa01f": {
+    "correct_routing": "jobber",
+    "actual_routing": "jobber",
+    "note": "Gina Kim \u2014 reserve truck May 29",
+    "annotated_at": 1778941424
+  },
+  "call_9b96dd27af27bbd67f61e755d51": {
+    "correct_routing": "ignore",
+    "actual_routing": "email",
+    "note": "Doreen \u2014 declined to leave details, no action item on individual call",
+    "annotated_at": 1778941424
+  },
+  "call_dcd2b19701126009b6d7092664a": {
+    "correct_routing": "jobber",
+    "actual_routing": "jobber",
+    "note": "Madeline \u2014 book event May 19",
+    "annotated_at": 1778941424
+  },
+  "call_e9a549d1018964e82766a43ad7a": {
+    "correct_routing": "ignore",
+    "actual_routing": "ignore",
+    "note": "Brief disconnect",
+    "annotated_at": 1778941424
+  },
+  "call_8242d3d92d04b5b47806366f604": {
+    "correct_routing": "email",
+    "actual_routing": "ignore",
+    "note": "Emily \u2014 wants callback about truck in neighborhood",
+    "annotated_at": 1778941424
+  },
+  "call_1bb6659aebdc76ee0b96b61a0c3": {
+    "correct_routing": "ignore",
+    "actual_routing": "ignore",
+    "note": "No response, ended on inactivity",
+    "annotated_at": 1778941424
+  },
+  "call_9f1096a9feca6fd83a41e6a60ed": {
+    "correct_routing": "ignore",
+    "actual_routing": "ignore",
+    "note": "Location inquiry \u2014 How to find us, handled",
+    "annotated_at": 1778941424
+  },
+  "call_20c1335f301f72cc29c4f13659b": {
+    "correct_routing": "ignore",
+    "actual_routing": "ignore",
+    "note": "Newark truck location \u2014 directed to app",
+    "annotated_at": 1778941424
+  },
+  "call_b1a203c2d83a8978586a2e74a9f": {
+    "correct_routing": "email",
+    "actual_routing": "email",
+    "note": "Foster City \u2014 frustrated with app accuracy, negative sentiment",
+    "annotated_at": 1778941424
+  },
+  "call_58d44a3265290560833105bb1e6": {
+    "correct_routing": "ignore",
+    "actual_routing": "ignore",
+    "note": "San Bruno truck availability \u2014 handled",
+    "annotated_at": 1778941424
+  }
+}
