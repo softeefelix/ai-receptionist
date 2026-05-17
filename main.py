@@ -223,14 +223,18 @@ def retell_get_call(call_id):
 # ── Jobber ────────────────────────────────────────────────────────────────────
 
 def _jobber_load_tokens():
+    # Shared canonical source: softy_dashboard_app_kv key='jobber_tokens'.
+    # Both ai-receptionist and softeedashboard write here, so whichever
+    # project refreshes last always leaves a valid token for the other —
+    # eliminates the refresh-token rotation conflict between the two projects.
     db = _get_db()
     if db:
         cur = db.cursor()
-        cur.execute("SELECT tokens_json FROM jobber_tokens WHERE id = 1")
+        cur.execute("SELECT value FROM softy_dashboard_app_kv WHERE key = 'jobber_tokens'")
         row = cur.fetchone()
         if row:
             return json.loads(row[0])
-        # DB has no tokens yet — fall through to seed from env or file
+        # No row yet — fall through to seed from local file or env var
 
     if JOBBER_TOKENS_FILE.exists():
         return json.loads(JOBBER_TOKENS_FILE.read_text())
@@ -240,13 +244,15 @@ def _jobber_load_tokens():
     return None
 
 def _jobber_save_tokens(tokens):
+    tokens['saved_at'] = time.time()
     db = _get_db()
     if db:
         cur = db.cursor()
         cur.execute("""
-            INSERT INTO jobber_tokens (id, tokens_json, updated_at) VALUES (1, %s, %s)
-            ON CONFLICT (id) DO UPDATE SET tokens_json = EXCLUDED.tokens_json, updated_at = EXCLUDED.updated_at
-        """, (json.dumps(tokens), int(time.time() * 1000)))
+            INSERT INTO softy_dashboard_app_kv (key, value, updated_at)
+            VALUES ('jobber_tokens', %s, NOW())
+            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+        """, (json.dumps(tokens),))
         db.commit()
     else:
         JOBBER_TOKENS_FILE.write_text(json.dumps(tokens, indent=2))
