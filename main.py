@@ -985,6 +985,7 @@ def poll():
     print(f'[Poll] {len(calls)} calls since {ts_str}')
 
     counts = {'jobber': 0, 'email': 0, 'ignore': 0, 'error': 0}
+    db     = _get_db()
 
     for call in calls:
         call_id = call.get('call_id', '')
@@ -993,6 +994,26 @@ def poll():
             continue
         if call.get('call_status') != 'ended':
             continue
+
+        # Atomic claim: INSERT … ON CONFLICT DO NOTHING.
+        # If another run (or a manual backfill) already claimed this call_id,
+        # rowcount == 0 and we skip it — prevents double-processing entirely.
+        now_ms = int(time.time() * 1000)
+        if db:
+            cur = db.cursor()
+            cur.execute(
+                "INSERT INTO processed_calls (call_id, processed_at) VALUES (%s, %s) "
+                "ON CONFLICT (call_id) DO NOTHING",
+                (call_id, now_ms),
+            )
+            db.commit()
+            if cur.rowcount == 0:
+                print(f'[Poll] {call_id} already claimed — skipping')
+                processed_ids[call_id] = now_ms
+                continue
+        else:
+            # File-based fallback: no atomicity, but single-runner local dev is fine
+            processed_ids[call_id] = now_ms
 
         # list-calls doesn't include call_analysis — fetch the full record
         try:
@@ -1008,7 +1029,6 @@ def poll():
         action, _ = classify_call(call)
         try:
             route_call(call)
-            processed_ids[call_id] = int(time.time() * 1000)
             counts[action] = counts.get(action, 0) + 1
         except Exception as e:
             print(f'[Poll] Routing error for {call_id} — queuing for retry: {e}')
@@ -1021,7 +1041,6 @@ def poll():
                 'next_retry_at': time.time() + 60,
             })
             save_failed(existing)
-            processed_ids[call_id] = int(time.time() * 1000)
             counts['error'] += 1
 
         shadow_log(call)
