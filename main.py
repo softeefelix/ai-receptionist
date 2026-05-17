@@ -493,8 +493,35 @@ _APP_RESOLUTION_PHRASES = [
     'recommended using the',
 ]
 
+_SAME_DAY_SIGNALS = [
+    'today', 'tonight', 'this afternoon', 'this evening', 'this morning',
+    'right now', 'in a few hours', 'in an hour', 'within the hour',
+]
+
+
+def _is_same_day_event(call):
+    """True when the caller's event is today — triggers Slack escalation."""
+    analysis    = call.get('call_analysis') or {}
+    custom      = analysis.get('custom_analysis_data') or {}
+    event_dt    = (custom.get('event_datetime') or '').lower()
+    msg_lower   = (custom.get('caller_message') or '').lower()
+    summary     = (analysis.get('call_summary') or '').lower()
+
+    # If the AI extracted an event_datetime that says "today", trust it
+    if any(sig in event_dt for sig in _SAME_DAY_SIGNALS):
+        return True
+
+    # Otherwise check the message + summary for same-day language alongside event intent
+    combined = f'{msg_lower} {summary}'
+    has_same_day = any(sig in combined for sig in _SAME_DAY_SIGNALS)
+    has_event    = any(kw in combined for kw in _BOOKING_KEYWORDS)
+    return has_same_day and has_event
+
+
 def classify_call(call):
-    """Returns ('jobber' | 'email' | 'ignore', reason).
+    """Returns ('jobber' | 'slack' | 'email' | 'ignore', reason).
+
+    'slack' = same-day event request needing immediate attention.
 
     Classification improves over time via shadow_annotations.json — run
     `python3 review_shadow.py --annotate` after calls accumulate.
@@ -550,6 +577,9 @@ def classify_call(call):
 
     # New booking/event inquiry — only check caller_message to avoid false positives
     if any(kw in msg_lower for kw in _BOOKING_KEYWORDS):
+        # Same-day events need an immediate response, not a Jobber ticket
+        if _is_same_day_event(call):
+            return 'slack', 'same-day event request — needs immediate response'
         return 'jobber', 'booking/service keywords detected'
 
     # Call was handled by agent or transferred — no follow-up needed
@@ -690,6 +720,39 @@ max-width:600px;margin:0 auto;padding:24px;color:#222">
 <table style="border-collapse:collapse;width:100%">{rows_html}</table>
 </body></html>"""
 
+def _format_slack_same_day(call):
+    """Slack message for a same-day event request."""
+    analysis    = call.get('call_analysis') or {}
+    custom      = analysis.get('custom_analysis_data') or {}
+    name        = (custom.get('caller_first_name') or '').strip()
+    phone       = call.get('from_number', 'Unknown')
+    event_dt    = custom.get('event_datetime') or '—'
+    event_loc   = custom.get('event_location') or '—'
+    guest_count = custom.get('event_guest_count') or '—'
+    message     = custom.get('caller_message') or '—'
+    summary     = analysis.get('call_summary') or '—'
+    recording   = call.get('recording_url') or ''
+    public_log  = call.get('public_log_url') or ''
+
+    caller_str = f'{name} ({phone})' if name else phone
+    lines = [
+        f':rotating_light: *Same-day event request — respond immediately*',
+        f'',
+        f'*Caller:* {caller_str}',
+        f'*When:* {event_dt}',
+        f'*Where:* {event_loc}',
+        f'*Guests:* {guest_count}',
+        f'*Message:* {message}',
+        f'',
+        f'*Summary:* {summary}',
+    ]
+    if recording:
+        lines.append(f'*Recording:* {recording}')
+    if public_log:
+        lines.append(f'*Voice chat:* {public_log}')
+    return '\n'.join(lines)
+
+
 def route_call(call):
     action, reason = classify_call(call)
     analysis       = call.get('call_analysis') or {}
@@ -704,6 +767,10 @@ def route_call(call):
     print(f'[Route] {call_id} from={from_number} → {action} ({reason})')
 
     if action == 'ignore':
+        return
+
+    if action == 'slack':
+        send_slack(_format_slack_same_day(call))
         return
 
     if action == 'email':
@@ -961,6 +1028,8 @@ def _send_poll_summary(counts, since_str):
     if total == 0:
         return  # nothing new — stay silent
     lines = [f':telephone_receiver: *Poll complete* — {total} new call(s) since {since_str}']
+    if counts.get('slack'):
+        lines.append(f'  :rotating_light: Same-day escalations: {counts["slack"]}')
     if counts.get('jobber'):
         lines.append(f'  :spiral_note_pad: Jobber requests created: {counts["jobber"]}')
     if counts.get('email'):
@@ -990,7 +1059,7 @@ def poll():
     ts_str = datetime.fromtimestamp(since_ts / 1000).strftime('%I:%M %p')
     print(f'[Poll] {len(calls)} calls since {ts_str}')
 
-    counts = {'jobber': 0, 'email': 0, 'ignore': 0, 'error': 0}
+    counts = {'jobber': 0, 'slack': 0, 'email': 0, 'ignore': 0, 'error': 0}
     db     = _get_db()
 
     for call in calls:
