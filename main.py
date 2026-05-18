@@ -464,6 +464,25 @@ _TRYING_TO_REACH_PHRASES = [
 # Retell agent writes this exact string when the call was a location/app lookup
 _LOCATION_INQUIRY_MARKER = 'location inquiry - directed to app'
 
+# Caller asking whether the truck comes to their street/neighborhood — not a booking
+_NEIGHBORHOOD_INQUIRY_PHRASES = [
+    'come down',
+    'come by our street', 'come by my street',
+    'come by our block', 'come by our neighborhood', 'come by our area',
+    'come to our street', 'come to my street',
+    'come to our block', 'come to my block',
+    'come to our neighborhood', 'come to my neighborhood',
+    'come to our area', 'come to my area',
+    'come through our', 'come through my',
+    'do you come to',
+    'do you service',
+    'do you go to',
+    'do you cover',
+    'will you be in',
+    'will you be on',
+    'pass through',
+]
+
 # Agent transferred the caller or fully resolved their inquiry — no follow-up needed
 _TRANSFERRED_PHRASES = [
     'was transferred',
@@ -574,6 +593,11 @@ def classify_call(call):
         if 'transferred' in msg_lower or 'was connected' in msg_lower:
             return 'ignore', 'existing booking check — caller was transferred'
         return 'email', 'caller following up on existing booking'
+
+    # Neighborhood/route inquiry — "will you come down Oak Street?" is not a booking
+    if any(phrase in msg_lower for phrase in _NEIGHBORHOOD_INQUIRY_PHRASES):
+        if not any(kw in msg_lower for kw in _STRONG_BOOKING_KEYWORDS):
+            return 'email', 'neighborhood/route inquiry — no booking intent'
 
     # New booking/event inquiry — only check caller_message to avoid false positives
     if any(kw in msg_lower for kw in _BOOKING_KEYWORDS):
