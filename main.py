@@ -626,16 +626,16 @@ def classify_call(call):
         if not any(kw in msg_lower for kw in _STRONG_BOOKING_KEYWORDS):
             return 'email', 'neighborhood/route inquiry — no booking intent'
 
+    # Call was handled by agent or transferred — no follow-up needed regardless of keywords
+    if any(phrase in msg_lower for phrase in _TRANSFERRED_PHRASES):
+        return 'ignore', 'call was transferred or agent-handled — no follow-up needed'
+
     # New booking/event inquiry — only check caller_message to avoid false positives
     if any(kw in msg_lower for kw in _BOOKING_KEYWORDS):
         # Same-day events need an immediate response, not a Jobber ticket
         if _is_same_day_event(call):
             return 'slack', 'same-day event request — needs immediate response'
         return 'jobber', 'booking/service keywords detected'
-
-    # Call was handled by agent or transferred — no follow-up needed
-    if any(phrase in msg_lower for phrase in _TRANSFERRED_PHRASES):
-        return 'ignore', 'call was transferred or agent-handled — no follow-up needed'
 
     # Caller left a substantive message but no booking intent → email.
     # Note: call_successful tracks whether the agent completed its task, not whether
