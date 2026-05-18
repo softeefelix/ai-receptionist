@@ -459,6 +459,23 @@ _NO_MESSAGE_INDICATORS = [
     'did not have a clear request', 'no coherent request',
 ]
 
+# Caller asking how the process works — informational inquiry, not a booking
+_PROCESS_INQUIRY_PHRASES = [
+    'seeking information',
+    'wanted to know how',
+    'inquired about how',
+    'asking about how',
+    'asking how to',
+    'how to have a truck',
+    'how to get a truck',
+    'how the process',
+    'information on the process',
+    'information about the process',
+    'how does it work',
+    'how do i book',
+    'how do we book',
+]
+
 # Caller is relaying information to someone, not initiating a new booking
 _INFO_RELAY_PHRASES = [
     'received an email', 'got an email', 'got your email', 'saw your email',
@@ -621,6 +638,10 @@ def classify_call(call):
         )):
             return 'ignore', 'existing booking check — caller was transferred'
         return 'email', 'caller following up on existing booking'
+
+    # Process/info inquiry — "how to have a truck come", "seeking information on booking"
+    if any(phrase in msg_lower for phrase in _PROCESS_INQUIRY_PHRASES):
+        return 'email', 'process/information inquiry — not a booking'
 
     # Caller relaying information to someone — not a new booking inquiry
     if any(phrase in msg_lower for phrase in _INFO_RELAY_PHRASES) or _LET_KNOW_RE.search(msg_lower):
