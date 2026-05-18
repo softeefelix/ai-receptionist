@@ -502,10 +502,15 @@ _NEIGHBORHOOD_INQUIRY_PHRASES = [
 # Agent transferred the caller or fully resolved their inquiry — no follow-up needed
 _TRANSFERRED_PHRASES = [
     'was transferred',
+    'were transferred',
     'transferred accordingly',
     'transferred to the',
     'transferred to an',
+    'transferred the call',
+    'transferred the caller',
+    'call was transferred',
     'was connected to',
+    'were connected to',
     'connected to an operator',
     'was relieved when',
     'were informed that',
@@ -564,10 +569,11 @@ def classify_call(call):
     analysis = call.get('call_analysis') or {}
     custom   = analysis.get('custom_analysis_data') or {}
 
-    in_voicemail   = analysis.get('in_voicemail', False)
-    caller_message = (custom.get('caller_message') or '').strip()
-    caller_email   = (custom.get('caller_email') or '').strip()
-    msg_lower      = caller_message.lower()
+    in_voicemail    = analysis.get('in_voicemail', False)
+    caller_message  = (custom.get('caller_message') or '').strip()
+    caller_email    = (custom.get('caller_email') or '').strip()
+    msg_lower       = caller_message.lower()
+    summary_lower   = (analysis.get('call_summary') or '').lower()
 
     if in_voicemail:
         return 'email', 'voicemail'
@@ -626,8 +632,9 @@ def classify_call(call):
         if not any(kw in msg_lower for kw in _STRONG_BOOKING_KEYWORDS):
             return 'email', 'neighborhood/route inquiry — no booking intent'
 
-    # Call was handled by agent or transferred — no follow-up needed regardless of keywords
-    if any(phrase in msg_lower for phrase in _TRANSFERRED_PHRASES):
+    # Call was handled by agent or transferred — no follow-up needed regardless of keywords.
+    # Check summary too: Retell sometimes only records the transfer outcome there.
+    if any(phrase in msg_lower or phrase in summary_lower for phrase in _TRANSFERRED_PHRASES):
         return 'ignore', 'call was transferred or agent-handled — no follow-up needed'
 
     # New booking/event inquiry — only check caller_message to avoid false positives
