@@ -457,6 +457,16 @@ _NO_MESSAGE_INDICATORS = [
     'did not have a clear request', 'no coherent request',
 ]
 
+# Caller is relaying information to someone, not initiating a new booking
+_INFO_RELAY_PHRASES = [
+    'received an email', 'got an email', 'got your email', 'saw your email',
+    'received your email', 'sharing the information', 'sharing this information',
+    'pass along', 'passing along', 'passed along',
+    'share the information', 'sharing with my', 'sharing this with',
+]
+# Matches "let Lenny know", "let her know", etc. — directed at a named contact
+_LET_KNOW_RE = re.compile(r'\blet \w+ know\b')
+
 # Caller is specifically trying to reach a named person — email even if no message left
 _TRYING_TO_REACH_PHRASES = [
     'trying to reach',
@@ -598,6 +608,11 @@ def classify_call(call):
         if 'transferred' in msg_lower or 'was connected' in msg_lower:
             return 'ignore', 'existing booking check — caller was transferred'
         return 'email', 'caller following up on existing booking'
+
+    # Caller relaying information to someone — not a new booking inquiry
+    if any(phrase in msg_lower for phrase in _INFO_RELAY_PHRASES) or _LET_KNOW_RE.search(msg_lower):
+        if not _STRONG_BOOKING_RE.search(msg_lower):
+            return 'email', 'caller relaying information — not a booking inquiry'
 
     # Neighborhood/route inquiry — "will you come down Oak Street?" is not a booking
     if any(phrase in msg_lower for phrase in _NEIGHBORHOOD_INQUIRY_PHRASES):
