@@ -447,6 +447,8 @@ _RETURNING_CALL_PHRASES = [
 _EXISTING_BOOKING_VERBS = [
     'confirm', 'confirming', 'check on', 'checking on',
     'follow up', 'following up', 'verify', 'verifying',
+    'update', 'updating', 'change', 'changing', 'modify', 'modifying',
+    'cancel', 'cancelling', 'canceling',
 ]
 _BOOKING_NOUNS = ['reservation', 'booking', 'appointment', 'event']
 
@@ -604,8 +606,13 @@ def classify_call(call):
     _booking_noun_re = re.compile(r'\b(?:' + '|'.join(_BOOKING_NOUNS) + r')\b')
     if (any(verb in msg_lower for verb in _EXISTING_BOOKING_VERBS) and
             _booking_noun_re.search(msg_lower)):
-        # Caller was successfully transferred — nothing left to follow up
-        if 'transferred' in msg_lower or 'was connected' in msg_lower:
+        # Caller was successfully transferred — nothing left to follow up.
+        # Use tight phrases only; "transferred to the" is intentionally excluded
+        # because it also appears in "unable to be transferred to the ...".
+        if any(phrase in msg_lower for phrase in (
+            'was transferred', 'were transferred', 'transferred accordingly',
+            'was connected to', 'were connected to', 'connected to an operator',
+        )):
             return 'ignore', 'existing booking check — caller was transferred'
         return 'email', 'caller following up on existing booking'
 
