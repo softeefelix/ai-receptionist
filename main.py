@@ -431,6 +431,10 @@ _STRONG_BOOKING_KEYWORDS = {
     'birthday', 'wedding', 'corporate', 'celebration',
     'reserve', 'parties', 'function',
 }
+# Word-boundary version — prevents 'rent' matching 'renting', 'book' matching 'notebook', etc.
+_STRONG_BOOKING_RE = re.compile(
+    r'\b(?:' + '|'.join(re.escape(kw) for kw in sorted(_STRONG_BOOKING_KEYWORDS, key=len, reverse=True)) + r')\b'
+)
 
 # Caller is returning a missed call — route to email unless strong booking intent is clear
 _RETURNING_CALL_PHRASES = [
@@ -578,9 +582,10 @@ def classify_call(call):
     if any(phrase in msg_lower for phrase in _NO_MESSAGE_INDICATORS):
         return 'ignore', 'caller left no specific message'
 
-    # Returning a missed call — email, UNLESS strong new-booking intent is present
+    # Returning a missed call — email, UNLESS strong new-booking intent is present.
+    # Use word-boundary regex so 'rent' doesn't fire on 'renting', etc.
     if any(phrase in msg_lower for phrase in _RETURNING_CALL_PHRASES):
-        if any(kw in msg_lower for kw in _STRONG_BOOKING_KEYWORDS):
+        if _STRONG_BOOKING_RE.search(msg_lower):
             return 'jobber', 'callback context but primary intent is a new booking'
         return 'email', 'caller returning a missed call'
 
