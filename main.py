@@ -421,6 +421,7 @@ _BOOKING_KEYWORDS = [
     'birthday', 'wedding', 'corporate', 'celebration',
     'reserve', 'reservation', 'schedule',
     'event', 'parties', 'function',
+    'fundraiser', 'fund raiser', 'graduation', 'field day',
 ]
 
 # Subset of _BOOKING_KEYWORDS that unambiguously signal a NEW booking, even in callback context.
@@ -430,6 +431,7 @@ _STRONG_BOOKING_KEYWORDS = {
     'catering', 'cater', 'hire', 'rent', 'rental', 'private',
     'birthday', 'wedding', 'corporate', 'celebration',
     'reserve', 'parties', 'function',
+    'fundraiser', 'fund raiser', 'graduation', 'field day',
 }
 # Word-boundary version — prevents 'rent' matching 'renting', 'book' matching 'notebook', etc.
 _STRONG_BOOKING_RE = re.compile(
