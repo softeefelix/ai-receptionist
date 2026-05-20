@@ -617,6 +617,14 @@ def classify_call(call):
 
     # Caller explicitly left no actionable message
     if any(phrase in msg_lower for phrase in _NO_MESSAGE_INDICATORS):
+        # Caller signaled booking/event intent but hung up before leaving details —
+        # route to email so a human can call them back. Skip if the agent already
+        # transferred them (the transfer check below would otherwise catch it).
+        has_booking_intent = bool(_STRONG_BOOKING_RE.search(msg_lower)) or \
+                             bool(re.search(r'\bevent\b', msg_lower))
+        was_transferred = any(p in summary_lower for p in _TRANSFERRED_PHRASES)
+        if has_booking_intent and not was_transferred:
+            return 'email', 'caller expressed booking intent but left no details — needs follow-up'
         return 'ignore', 'caller left no specific message'
 
     # Returning a missed call — email, UNLESS strong new-booking intent is present.
