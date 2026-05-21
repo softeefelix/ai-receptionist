@@ -38,10 +38,9 @@ def _existing_logged_ids():
 
 
 def _local_day_bounds_ms(d):
-    """Return (start_ms, end_ms) for a calendar date in local time."""
-    tz = datetime.now().astimezone().tzinfo
-    start = datetime(d.year, d.month, d.day, 0, 0, 0, tzinfo=tz)
-    end   = datetime(d.year, d.month, d.day, 23, 59, 59, tzinfo=tz)
+    """Return (start_ms, end_ms) for a calendar date in Pacific time."""
+    start = datetime(d.year, d.month, d.day, 0, 0, 0, tzinfo=_m.PACIFIC)
+    end   = datetime(d.year, d.month, d.day, 23, 59, 59, tzinfo=_m.PACIFIC)
     return int(start.timestamp() * 1000), int(end.timestamp() * 1000)
 
 
@@ -116,8 +115,8 @@ def main():
 
     label = str(start_date) if start_date == end_date else f'{start_date} → {end_date}'
     print(f'\nBackfill: {label}')
-    print(f'  Window: {datetime.fromtimestamp(start_ms/1000).strftime("%Y-%m-%d %H:%M")} – '
-          f'{datetime.fromtimestamp(end_ms/1000).strftime("%Y-%m-%d %H:%M")} local')
+    print(f'  Window: {datetime.fromtimestamp(start_ms/1000, tz=_m.PACIFIC).strftime("%Y-%m-%d %H:%M")} – '
+          f'{datetime.fromtimestamp(end_ms/1000, tz=_m.PACIFIC).strftime("%Y-%m-%d %H:%M")} PT')
 
     already_logged = _existing_logged_ids()
     print(f'  Already in shadow log: {len(already_logged)}')

@@ -18,6 +18,9 @@ import time
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
+
+PACIFIC = ZoneInfo('America/Los_Angeles')
 
 LOG_FILE        = Path(__file__).parent / 'shadow_log.jsonl'
 ANNOTATION_FILE = Path(__file__).parent / 'shadow_annotations.json'
@@ -58,13 +61,13 @@ def fmt_ts(ts):
     if not ts:
         return '?'
     return (datetime.fromtimestamp(ts / 1000, tz=timezone.utc)
-            .astimezone().strftime('%m/%d %I:%M%p'))
+            .astimezone(PACIFIC).strftime('%m/%d %I:%M%p'))
 
 def fmt_ts_long(ts):
     if not ts:
         return 'unknown'
     return (datetime.fromtimestamp(ts / 1000, tz=timezone.utc)
-            .astimezone().strftime('%Y-%m-%d %I:%M %p %Z'))
+            .astimezone(PACIFIC).strftime('%Y-%m-%d %I:%M %p %Z'))
 
 def routing_label(r):
     return ROUTING_LABELS.get(r, r or '—')

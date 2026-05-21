@@ -18,6 +18,9 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
+
+PACIFIC = ZoneInfo('America/Los_Angeles')
 
 
 # ── Config ────────────────────────────────────────────────────────────────────
@@ -689,7 +692,7 @@ def _format_notes(call):
     custom   = analysis.get('custom_analysis_data') or {}
     ts       = call.get('start_timestamp', 0)
     when     = (datetime.fromtimestamp(ts / 1000, tz=timezone.utc)
-                .astimezone().strftime('%Y-%m-%d %I:%M %p %Z') if ts else 'unknown')
+                .astimezone(PACIFIC).strftime('%Y-%m-%d %I:%M %p %Z') if ts else 'unknown')
 
     name = custom.get('caller_first_name') or ''
     if custom.get('caller_last_name'):
@@ -716,7 +719,7 @@ def _format_jobber_overview(call):
     custom   = analysis.get('custom_analysis_data') or {}
     ts       = call.get('start_timestamp', 0)
     when     = (datetime.fromtimestamp(ts / 1000, tz=timezone.utc)
-                .astimezone().strftime('%Y-%m-%d %I:%M %p %Z') if ts else 'unknown')
+                .astimezone(PACIFIC).strftime('%Y-%m-%d %I:%M %p %Z') if ts else 'unknown')
 
     guest_count = custom.get('event_guest_count') or '—'
     event_dt    = custom.get('event_datetime')    or '—'
@@ -765,7 +768,7 @@ def _format_email_html(call, tag):
     custom   = analysis.get('custom_analysis_data') or {}
     ts       = call.get('start_timestamp', 0)
     when     = (datetime.fromtimestamp(ts / 1000, tz=timezone.utc)
-                .astimezone().strftime('%Y-%m-%d %I:%M %p %Z') if ts else 'unknown')
+                .astimezone(PACIFIC).strftime('%Y-%m-%d %I:%M %p %Z') if ts else 'unknown')
 
     name = custom.get('caller_first_name') or ''
     if custom.get('caller_last_name'):
@@ -1003,7 +1006,7 @@ def _send_repeat_caller_alert(phone, entries):
     lines  = [header, '']
     for e in sorted(entries, key=lambda x: x.get('ts', 0)):
         ts     = e.get('ts', 0)
-        when   = datetime.fromtimestamp(ts / 1000).strftime('%I:%M %p') if ts else '?'
+        when   = datetime.fromtimestamp(ts / 1000, tz=PACIFIC).strftime('%I:%M %p') if ts else '?'
         routed = (e.get('routed_to') or '?').upper()
         note   = (e.get('caller_message') or e.get('summary') or '—')[:120]
         lines.append(f'  {when}  [{routed}]  {note}')
@@ -1145,7 +1148,7 @@ def poll():
     since_ts = state.get('last_run_at', 0) - 120_000
 
     calls = retell_list_calls(since_ts)
-    ts_str = datetime.fromtimestamp(since_ts / 1000).strftime('%I:%M %p')
+    ts_str = datetime.fromtimestamp(since_ts / 1000, tz=PACIFIC).strftime('%I:%M %p')
     print(f'[Poll] {len(calls)} calls since {ts_str}')
 
     counts = {'jobber': 0, 'slack': 0, 'email': 0, 'ignore': 0, 'error': 0}
