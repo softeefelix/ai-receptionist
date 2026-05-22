@@ -441,6 +441,22 @@ _STRONG_BOOKING_RE = re.compile(
     r'\b(?:' + '|'.join(re.escape(kw) for kw in sorted(_STRONG_BOOKING_KEYWORDS, key=len, reverse=True)) + r')\b'
 )
 
+# Truck dispatch language — caller is asking for Mister Softee to come somewhere.
+# Restricted to unambiguous dispatch verbs (request/send/arrange/dispatch/book/
+# hire/reserve) to avoid catching location inquiries ("looking for the truck",
+# "want to locate a truck") or existing-booking follow-ups.
+_TRUCK_DISPATCH_RE = re.compile(
+    r'\b(?:request|requesting|requests|requested|'
+    r'send|sending|sends|sent|'
+    r'arrange|arranging|arranges|arranged|'
+    r'dispatch|dispatching|dispatches|dispatched|'
+    r'book|booking|books|booked|'
+    r'hire|hiring|hires|hired|'
+    r'reserve|reserving|reserves|reserved)\b'
+    r'(?:\s+(?!information\b|info\b|message\b|callback\b)\w+){0,4}\s+'
+    r'(?:truck|mister\s+softee)\b'
+)
+
 # Caller is returning a missed call — route to email unless strong booking intent is clear
 _RETURNING_CALL_PHRASES = [
     'returning a call', 'returning your call', 'returning the call',
@@ -456,6 +472,17 @@ _EXISTING_BOOKING_VERBS = [
     'cancel', 'cancelling', 'canceling',
 ]
 _BOOKING_NOUNS = ['reservation', 'booking', 'appointment', 'event']
+
+# Caller is following up on something they already initiated — distinct from
+# "follow up with her regarding the request" (agent's closure language).
+# Requires the verb to govern the booking noun directly.
+_EXISTING_FOLLOWUP_RE = re.compile(
+    r'\b(?:following up on|followed up on|follow up on|'
+    r'calling about|calling to follow up on|calling to check on)\s+'
+    r'(?:a|an|the|her|his|their|my|our)\s*'
+    r'(?:previous|prior|earlier|original|existing)?\s*'
+    r'\b(?:request|booking|reservation|appointment|inquiry|order|email)\b'
+)
 
 # Caller explicitly left no actionable message — safe to ignore
 _NO_MESSAGE_INDICATORS = [
@@ -637,6 +664,15 @@ def classify_call(call):
             return 'jobber', 'callback context but primary intent is a new booking'
         return 'email', 'caller returning a missed call'
 
+    # Caller explicitly following up on something they initiated previously
+    if _EXISTING_FOLLOWUP_RE.search(msg_lower):
+        if any(phrase in msg_lower for phrase in (
+            'was transferred', 'were transferred', 'transferred accordingly',
+            'was connected to', 'were connected to', 'connected to an operator',
+        )):
+            return 'ignore', 'existing follow-up — caller was transferred'
+        return 'email', 'caller following up on prior request'
+
     # Confirming/checking on an existing booking — use word boundaries to avoid
     # subword false positives (e.g. 'event' inside 'seventy')
     _booking_noun_re = re.compile(r'\b(?:' + '|'.join(_BOOKING_NOUNS) + r')\b')
@@ -672,7 +708,8 @@ def classify_call(call):
         return 'ignore', 'call was transferred or agent-handled — no follow-up needed'
 
     # New booking/event inquiry — only check caller_message to avoid false positives
-    if any(kw in msg_lower for kw in _BOOKING_KEYWORDS):
+    if (any(kw in msg_lower for kw in _BOOKING_KEYWORDS) or
+            _TRUCK_DISPATCH_RE.search(msg_lower)):
         # Same-day events need an immediate response, not a Jobber ticket
         if _is_same_day_event(call):
             return 'slack', 'same-day event request — needs immediate response'
