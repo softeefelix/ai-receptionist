@@ -514,6 +514,29 @@ _PROCESS_INQUIRY_PHRASES = [
     'how do we book',
 ]
 
+# Caller asking about quantity/capacity/pricing/menu — informational, needs a
+# human answer, not a Jobber ticket. Even if 'event' or other booking keywords
+# appear, these signal pre-booking research.
+_INFO_QUERY_PHRASES = [
+    # quantity / capacity
+    'how many servings', 'how many scoops', 'how many people can',
+    'number of servings', 'number of scoops',
+    'servings per', 'servings in an hour', 'servings in one hour',
+    'servings in a hour',
+    'how many trucks',
+    # pricing
+    'how much per', 'how much for', 'how much it costs', 'how much does it cost',
+    'how much would it cost', 'how much it would cost', 'how much do you charge',
+    'what does it cost', 'what is the cost', "what's the cost", 'what costs',
+    'what is the price', "what's the price", 'what are the prices',
+    'your pricing', 'your prices', 'your rates', 'pricing information',
+    'price information',
+    # menu / flavors
+    'what flavors', 'what kind of ice cream', 'what kinds of ice cream',
+    'what types of ice cream', "what's on the menu", 'what is the menu',
+    'your menu', 'menu options', 'menu items',
+]
+
 # Caller is relaying information to someone, not initiating a new booking
 _INFO_RELAY_PHRASES = [
     'received an email', 'got an email', 'got your email', 'saw your email',
@@ -721,6 +744,12 @@ def classify_call(call):
     # Process/info inquiry — "how to have a truck come", "seeking information on booking"
     if any(phrase in msg_lower for phrase in _PROCESS_INQUIRY_PHRASES):
         return 'email', 'process/information inquiry — not a booking'
+
+    # Quantity/capacity/pricing/menu question — caller is researching, not booking.
+    # Strong booking signal (birthday/wedding/private/etc.) still wins.
+    if any(phrase in msg_lower for phrase in _INFO_QUERY_PHRASES):
+        if not _STRONG_BOOKING_RE.search(msg_lower):
+            return 'email', 'pricing/capacity/menu inquiry — needs answer, not a booking'
 
     # Caller relaying information to someone — not a new booking inquiry
     if any(phrase in msg_lower for phrase in _INFO_RELAY_PHRASES) or _LET_KNOW_RE.search(msg_lower):
