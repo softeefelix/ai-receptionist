@@ -436,9 +436,12 @@ _STRONG_BOOKING_KEYWORDS = {
     'reserve', 'parties', 'function',
     'fundraiser', 'fund raiser', 'graduation', 'field day',
 }
-# Word-boundary version — prevents 'rent' matching 'renting', 'book' matching 'notebook', etc.
+# Word-boundary version — prevents 'rent' matching 'currently', 'book' matching 'notebook', etc.
 _STRONG_BOOKING_RE = re.compile(
     r'\b(?:' + '|'.join(re.escape(kw) for kw in sorted(_STRONG_BOOKING_KEYWORDS, key=len, reverse=True)) + r')\b'
+)
+_BOOKING_RE = re.compile(
+    r'\b(?:' + '|'.join(re.escape(kw) for kw in sorted(_BOOKING_KEYWORDS, key=len, reverse=True)) + r')\b'
 )
 
 # Truck dispatch language — caller is asking for Mister Softee to come somewhere.
@@ -453,7 +456,10 @@ _TRUCK_DISPATCH_RE = re.compile(
     r'book|booking|books|booked|'
     r'hire|hiring|hires|hired|'
     r'reserve|reserving|reserves|reserved)\b'
-    r'(?:\s+(?!information\b|info\b|message\b|callback\b)\w+){0,4}\s+'
+    r'(?:\s+(?!information\b|info\b|message\b|callback\b|'
+    r'assistance\b|help\b|aid\b|'
+    r'checking\b|check\b|find\b|finding\b|locate\b|locating\b|'
+    r'track\b|tracking\b|locator\b|tracker\b)\w+){0,4}\s+'
     r'(?:truck|mister\s+softee)\b'
 )
 
@@ -603,7 +609,7 @@ def _is_same_day_event(call):
     # Otherwise check the message + summary for same-day language alongside event intent
     combined = f'{msg_lower} {summary}'
     has_same_day = any(sig in combined for sig in _SAME_DAY_SIGNALS)
-    has_event    = any(kw in combined for kw in _BOOKING_KEYWORDS)
+    has_event    = bool(_BOOKING_RE.search(combined))
     return has_same_day and has_event
 
 
@@ -699,7 +705,7 @@ def classify_call(call):
 
     # Neighborhood/route inquiry — "will you come down Oak Street?" is not a booking
     if any(phrase in msg_lower for phrase in _NEIGHBORHOOD_INQUIRY_PHRASES):
-        if not any(kw in msg_lower for kw in _STRONG_BOOKING_KEYWORDS):
+        if not _STRONG_BOOKING_RE.search(msg_lower):
             return 'email', 'neighborhood/route inquiry — no booking intent'
 
     # Call was handled by agent or transferred — no follow-up needed regardless of keywords.
@@ -708,7 +714,7 @@ def classify_call(call):
         return 'ignore', 'call was transferred or agent-handled — no follow-up needed'
 
     # New booking/event inquiry — only check caller_message to avoid false positives
-    if (any(kw in msg_lower for kw in _BOOKING_KEYWORDS) or
+    if (_BOOKING_RE.search(msg_lower) or
             _TRUCK_DISPATCH_RE.search(msg_lower)):
         # Same-day events need an immediate response, not a Jobber ticket
         if _is_same_day_event(call):
