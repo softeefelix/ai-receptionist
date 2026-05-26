@@ -573,6 +573,28 @@ _LOCATION_INQUIRY_RE = re.compile(
     r'|\b(?:location\s+of|where\s+to\s+find|closest|nearest)\s+(?:the\s+|a\s+|any\s+)?(?:mister\s+softee\s+)?(?:truck|trucks)\b'
 )
 
+# Caller wants service "right now" from a truck they can see / that's nearby.
+# Jobber requests are future-looking; immediate-intent calls go to email so
+# a human can respond fast (or explain we don't do on-demand). Strong booking
+# signal (birthday/wedding/etc.) still overrides — those are planned events.
+_IMMEDIATE_INTENT_PHRASES = [
+    'nearby truck', 'nearby mister softee',
+    'a nearby truck', 'the nearby truck',
+    'truck nearby', 'mister softee truck nearby',
+    'see a truck', 'saw a truck', 'seeing a truck',
+    'see a mister softee', 'saw a mister softee',
+    'see the truck', 'saw the truck',
+    'near me', 'near us', 'near here',
+    'near my location', 'near our location',
+    'from a nearby', 'from the nearby',
+    'service from a nearby', 'service from the nearby',
+    'service right now', 'service immediately',
+    'right now from', 'currently nearby',
+    'in the area right now', 'in the area now',
+    'wanting service now', 'want service now',
+    'truck right now', 'a truck right now',
+]
+
 # Caller asking us to add their area to a regular route — needs an ops callback,
 # not a Jobber request. Triggers even when dispatch verbs are present.
 _ROUTE_EXTENSION_PHRASES = [
@@ -706,6 +728,13 @@ def classify_call(call):
     # know the location of a wedding truck" → Jobber).
     if _LOCATION_INQUIRY_RE.search(msg_lower) and not _STRONG_BOOKING_RE.search(msg_lower):
         return 'ignore', 'real-time truck location inquiry — no useful follow-up'
+
+    # Caller wants service NOW from a truck they see / a nearby truck.
+    # Jobber requests are future-looking; "happening now" intent → email.
+    # Strong booking signal still wins (planned events stay on Jobber).
+    if (any(phrase in msg_lower for phrase in _IMMEDIATE_INTENT_PHRASES)
+            and not _STRONG_BOOKING_RE.search(msg_lower)):
+        return 'email', 'immediate/nearby service intent — Jobber is future-looking'
 
     # No message at all
     if not caller_message:
