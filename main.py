@@ -423,7 +423,7 @@ _BOOKING_KEYWORDS = [
     'catering', 'cater', 'hire', 'rent', 'rental', 'private',
     'birthday', 'wedding', 'corporate', 'celebration',
     'reserve', 'reservation', 'schedule',
-    'event', 'parties', 'function',
+    'event', 'party', 'parties', 'function',
     'fundraiser', 'fund raiser', 'graduation', 'field day',
 ]
 
@@ -433,7 +433,7 @@ _STRONG_BOOKING_KEYWORDS = {
     'book', 'booking',
     'catering', 'cater', 'hire', 'rent', 'rental', 'private',
     'birthday', 'wedding', 'corporate', 'celebration',
-    'reserve', 'parties', 'function',
+    'reserve', 'party', 'parties', 'function',
     'fundraiser', 'fund raiser', 'graduation', 'field day',
 }
 # Word-boundary version — prevents 'rent' matching 'currently', 'book' matching 'notebook', etc.
