@@ -622,13 +622,8 @@ _ROUTE_EXTENSION_PHRASES = [
 # Caller asking whether the truck comes to their street/neighborhood — not a booking
 _NEIGHBORHOOD_INQUIRY_PHRASES = [
     'come down',
-    'come by our street', 'come by my street',
-    'come by our block', 'come by our neighborhood', 'come by our area',
-    'come to our street', 'come to my street',
-    'come to our block', 'come to my block',
-    'come to our neighborhood', 'come to my neighborhood',
-    'come to our area', 'come to my area',
-    'come through our', 'come through my',
+    'come through our', 'come through my', 'come through their',
+    'come through her', 'come through his',
     'do you come to',
     'do you service',
     'do you go to',
@@ -637,6 +632,16 @@ _NEIGHBORHOOD_INQUIRY_PHRASES = [
     'will you be on',
     'pass through',
 ]
+
+# Catches "come by our street", "come by their street", "go down my block",
+# "stop by his neighborhood", etc. — third-person variants matter because
+# Retell paraphrases caller messages in third person.
+_NEIGHBORHOOD_INQUIRY_RE = re.compile(
+    r'\b(?:come|go|stop|drive|pass)\s+'
+    r'(?:down|by|to|through|along|on)\s+'
+    r'(?:our|my|her|his|their|the)\s+'
+    r'(?:street|block|neighborhood|area|location|place|home)\b'
+)
 
 # Agent transferred the caller or fully resolved their inquiry — no follow-up needed
 _TRANSFERRED_PHRASES = [
@@ -816,7 +821,8 @@ def classify_call(call):
             return 'email', 'caller relaying information — not a booking inquiry'
 
     # Neighborhood/route inquiry — "will you come down Oak Street?" is not a booking
-    if any(phrase in msg_lower for phrase in _NEIGHBORHOOD_INQUIRY_PHRASES):
+    if (any(phrase in msg_lower for phrase in _NEIGHBORHOOD_INQUIRY_PHRASES)
+            or _NEIGHBORHOOD_INQUIRY_RE.search(msg_lower)):
         if not _STRONG_BOOKING_RE.search(msg_lower):
             return 'email', 'neighborhood/route inquiry — no booking intent'
 
