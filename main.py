@@ -736,6 +736,15 @@ def classify_call(call):
             and not _STRONG_BOOKING_RE.search(msg_lower)):
         return 'email', 'immediate/nearby service intent — Jobber is future-looking'
 
+    # Same-day intent ("today", "tonight", "later today") without a specific
+    # planned-event type → email. Jobber is future-looking; Slack still wins
+    # for same-day calls that DO mention a strong booking type (wedding/birthday/
+    # private/etc.) — those are planned events happening today.
+    combined = f'{msg_lower} {summary_lower}'
+    if (any(sig in combined for sig in _SAME_DAY_SIGNALS)
+            and not _STRONG_BOOKING_RE.search(combined)):
+        return 'email', 'same-day service intent — Jobber is future-looking'
+
     # No message at all
     if not caller_message:
         if caller_email:
