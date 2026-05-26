@@ -535,6 +535,30 @@ _TRYING_TO_REACH_PHRASES = [
 # Retell agent writes this exact string when the call was a location/app lookup
 _LOCATION_INQUIRY_MARKER = 'location inquiry - directed to app'
 
+# Caller asking us to add their area to a regular route — needs an ops callback,
+# not a Jobber request. Triggers even when dispatch verbs are present.
+_ROUTE_EXTENSION_PHRASES = [
+    # Retell summarizes calls in third person, so include her/his/their variants
+    'for our area', 'for my area', 'for her area', 'for his area', 'for their area', 'for the area',
+    'in our area', 'in my area', 'in her area', 'in his area', 'in their area',
+    'to our area', 'to my area', 'to her area', 'to his area', 'to their area',
+    'for our neighborhood', 'for my neighborhood', 'for her neighborhood',
+    'for his neighborhood', 'for their neighborhood',
+    'in our neighborhood', 'in my neighborhood', 'in her neighborhood',
+    'in his neighborhood', 'in their neighborhood',
+    'to our neighborhood', 'to my neighborhood', 'to her neighborhood',
+    'to his neighborhood', 'to their neighborhood',
+    'for our block', 'for my block', 'for her block', 'for his block', 'for their block',
+    'in our block', 'in my block', 'in her block', 'in his block', 'in their block',
+    'to our block', 'to my block', 'to her block', 'to his block', 'to their block',
+    'for our street', 'for my street', 'for her street', 'for his street', 'for their street',
+    'on our street', 'on my street', 'on her street', 'on his street', 'on their street',
+    'to our street', 'to my street', 'to her street', 'to his street', 'to their street',
+    'add our area', 'add my area', 'add our neighborhood', 'add my neighborhood',
+    'add our block', 'add my block',
+    'add her area', 'add his area', 'add their area',
+]
+
 # Caller asking whether the truck comes to their street/neighborhood — not a booking
 _NEIGHBORHOOD_INQUIRY_PHRASES = [
     'come down',
@@ -707,6 +731,12 @@ def classify_call(call):
     if any(phrase in msg_lower for phrase in _NEIGHBORHOOD_INQUIRY_PHRASES):
         if not _STRONG_BOOKING_RE.search(msg_lower):
             return 'email', 'neighborhood/route inquiry — no booking intent'
+
+    # Route-extension request — "request truck for our area" wants regular
+    # service in their neighborhood, not a private booking. Needs an ops callback.
+    if any(phrase in msg_lower for phrase in _ROUTE_EXTENSION_PHRASES):
+        if not _STRONG_BOOKING_RE.search(msg_lower):
+            return 'email', 'route-extension request — needs ops callback, not Jobber'
 
     # Call was handled by agent or transferred — no follow-up needed regardless of keywords.
     # Check summary too: Retell sometimes only records the transfer outcome there.
