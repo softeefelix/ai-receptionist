@@ -558,6 +558,21 @@ _TRYING_TO_REACH_PHRASES = [
 # Retell agent writes this exact string when the call was a location/app lookup
 _LOCATION_INQUIRY_MARKER = 'location inquiry - directed to app'
 
+# Caller asking where a truck is right now — real-time info that can't be
+# answered later, so ignore (don't email or Jobber). Matches Retell's third-
+# person summaries: "wants to know where the truck is", "wanted to know if
+# the truck was on the road", "wants to know the current location", etc.
+_LOCATION_INQUIRY_RE = re.compile(
+    r'\b(?:wants?|wanted) to know\s+(?:'
+    r'the\s+(?:current\s+)?location|'
+    r'where\s+(?:the\s+|a\s+|any\s+)?(?:mister\s+softee\s+)?(?:truck|trucks)|'
+    r'if\s+(?:the\s+|a\s+|any\s+)?(?:mister\s+softee\s+)?(?:truck|trucks)\s+(?:is|are|was|were|will)|'
+    r'whether\s+(?:the\s+|a\s+|any\s+)?(?:mister\s+softee\s+)?(?:truck|trucks)\s+(?:is|are|was|were|will)'
+    r')\b'
+    r'|\b(?:asking|inquiring|inquired|asked)\s+(?:about|for)\s+(?:the\s+)?(?:current\s+)?(?:truck\s+)?location\b'
+    r'|\b(?:location\s+of|where\s+to\s+find|closest|nearest)\s+(?:the\s+|a\s+|any\s+)?(?:mister\s+softee\s+)?(?:truck|trucks)\b'
+)
+
 # Caller asking us to add their area to a regular route — needs an ops callback,
 # not a Jobber request. Triggers even when dispatch verbs are present.
 _ROUTE_EXTENSION_PHRASES = [
@@ -685,6 +700,12 @@ def classify_call(call):
         return 'ignore', 'location/app inquiry — agent handled'
     if any(phrase in msg_lower for phrase in _APP_RESOLUTION_PHRASES):
         return 'ignore', 'caller resolved inquiry via app — no follow-up needed'
+
+    # Caller asking where a truck is right now — real-time info, can't be
+    # answered after the fact. Strong booking signal still wins ("wants to
+    # know the location of a wedding truck" → Jobber).
+    if _LOCATION_INQUIRY_RE.search(msg_lower) and not _STRONG_BOOKING_RE.search(msg_lower):
+        return 'ignore', 'real-time truck location inquiry — no useful follow-up'
 
     # No message at all
     if not caller_message:
