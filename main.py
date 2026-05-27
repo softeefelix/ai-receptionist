@@ -558,6 +558,15 @@ _TRYING_TO_REACH_PHRASES = [
 # Retell agent writes this exact string when the call was a location/app lookup
 _LOCATION_INQUIRY_MARKER = 'location inquiry - directed to app'
 
+# Booking-keyword phrases that come from the agent's own explanation of what a
+# service would require, not from the caller's intent — e.g. "the agent explained
+# that having a truck come to their house would require a private event booking."
+# Strip these before testing _STRONG_BOOKING_RE in location-inquiry context.
+_AGENT_BOOKING_EXPLANATION_RE = re.compile(
+    r'\b(?:would|will)\s+require\s+(?:a\s+)?(?:private\s+event\s+|private\s+|event\s+)?(?:booking|reservation|catering)\b'
+    r'|\b(?:that|which)\s+requires?\s+(?:a\s+)?(?:private\s+event\s+|private\s+|event\s+)?(?:booking|reservation|catering)\b'
+)
+
 # Caller asking where a truck is right now — real-time info that can't be
 # answered later, so ignore (don't email or Jobber). Matches Retell's third-
 # person summaries: "wants to know where the truck is", "wanted to know if
@@ -730,9 +739,13 @@ def classify_call(call):
 
     # Caller asking where a truck is right now — real-time info, can't be
     # answered after the fact. Strong booking signal still wins ("wants to
-    # know the location of a wedding truck" → Jobber).
-    if _LOCATION_INQUIRY_RE.search(msg_lower) and not _STRONG_BOOKING_RE.search(msg_lower):
-        return 'ignore', 'real-time truck location inquiry — no useful follow-up'
+    # know the location of a wedding truck" → Jobber), but scrub agent-
+    # explanation phrasing first so "would require a private event booking"
+    # doesn't falsely override a genuine location inquiry.
+    if _LOCATION_INQUIRY_RE.search(msg_lower):
+        msg_no_explanation = _AGENT_BOOKING_EXPLANATION_RE.sub('', msg_lower)
+        if not _STRONG_BOOKING_RE.search(msg_no_explanation):
+            return 'ignore', 'real-time truck location inquiry — no useful follow-up'
 
     # Caller wants service NOW from a truck they see / a nearby truck.
     # Jobber requests are future-looking; "happening now" intent → email.
