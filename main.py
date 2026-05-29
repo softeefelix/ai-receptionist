@@ -792,6 +792,8 @@ def classify_call(call):
     if any(phrase in msg_lower for phrase in _RETURNING_CALL_PHRASES):
         if _STRONG_BOOKING_RE.search(msg_lower):
             return 'jobber', 'callback context but primary intent is a new booking'
+        if any(phrase in msg_lower or phrase in summary_lower for phrase in _TRANSFERRED_PHRASES):
+            return 'ignore', 'returning call — caller was transferred, no follow-up needed'
         return 'email', 'caller returning a missed call'
 
     # Caller explicitly following up on something they initiated previously
