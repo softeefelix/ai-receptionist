@@ -628,6 +628,9 @@ _ROUTE_EXTENSION_PHRASES = [
     'add her area', 'add his area', 'add their area',
 ]
 
+# Caller asking for delivery — we don't offer delivery; route to email for a human to explain
+_DELIVERY_RE = re.compile(r'\b(?:deliver(?:y|ies|ed)?|delivery\s+service)\b')
+
 # Caller asking whether the truck comes to their street/neighborhood — not a booking
 _NEIGHBORHOOD_INQUIRY_PHRASES = [
     'come down',
@@ -851,6 +854,10 @@ def classify_call(call):
     # Check summary too: Retell sometimes only records the transfer outcome there.
     if any(phrase in msg_lower or phrase in summary_lower for phrase in _TRANSFERRED_PHRASES):
         return 'ignore', 'call was transferred or agent-handled — no follow-up needed'
+
+    # Delivery inquiry — we don't offer delivery; needs a human to explain
+    if _DELIVERY_RE.search(msg_lower) and not _STRONG_BOOKING_RE.search(msg_lower):
+        return 'email', 'delivery inquiry — we do not offer delivery'
 
     # New booking/event inquiry — only check caller_message to avoid false positives
     if (_BOOKING_RE.search(msg_lower) or
