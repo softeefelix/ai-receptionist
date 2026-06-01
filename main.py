@@ -561,10 +561,13 @@ _LOCATION_INQUIRY_MARKER = 'location inquiry - directed to app'
 # Booking-keyword phrases that come from the agent's own explanation of what a
 # service would require, not from the caller's intent — e.g. "the agent explained
 # that having a truck come to their house would require a private event booking."
+# Also strips app UI labels like "public and private event locations" that appear
+# when a caller describes what they see in the Mister Softee app map.
 # Strip these before testing _STRONG_BOOKING_RE in location-inquiry context.
 _AGENT_BOOKING_EXPLANATION_RE = re.compile(
     r'\b(?:would|will)\s+require\s+(?:a\s+)?(?:private\s+event\s+|private\s+|event\s+)?(?:booking|reservation|catering)\b'
     r'|\b(?:that|which)\s+requires?\s+(?:a\s+)?(?:private\s+event\s+|private\s+|event\s+)?(?:booking|reservation|catering)\b'
+    r'|\b(?:public\s+and\s+)?private\s+event\s+locations?\b'
 )
 
 # Caller asking where a truck is right now — real-time info that can't be
@@ -580,6 +583,7 @@ _LOCATION_INQUIRY_RE = re.compile(
     r')\b'
     r'|\b(?:asking|inquiring|inquired|asked)\s+(?:about|for)\s+(?:the\s+)?(?:current\s+)?(?:truck\s+)?location\b'
     r'|\b(?:location\s+of|where\s+to\s+find|closest|nearest)\s+(?:the\s+|a\s+|any\s+)?(?:mister\s+softee\s+)?(?:truck|trucks)\b'
+    r'|\b(?:requesting\s+(?:assistance\s+)?to\s+locate|trying\s+to\s+(?:locate|find)|unable\s+to\s+(?:locate|find|see))\s+(?:the\s+|a\s+)?(?:mister\s+softee\s+)?(?:ice\s+cream\s+)?(?:truck|trucks)\b'
 )
 
 # Caller wants service "right now" from a truck they can see / that's nearby.
