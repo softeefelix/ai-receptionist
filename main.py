@@ -422,13 +422,13 @@ _BOOKING_KEYWORDS = [
     'book', 'booking',
     'catering', 'cater', 'hire', 'rent', 'rental', 'private',
     'birthday', 'wedding', 'corporate', 'celebration',
-    'reserve', 'reservation', 'schedule',
+    'reserve', 'reservation',
     'event', 'party', 'parties', 'function',
     'fundraiser', 'fund raiser', 'graduation', 'field day',
 ]
 
 # Subset of _BOOKING_KEYWORDS that unambiguously signal a NEW booking, even in callback context.
-# 'event', 'schedule', 'reservation' are intentionally excluded — they often refer to existing ones.
+# 'event' and 'reservation' are intentionally excluded — they often refer to existing ones.
 _STRONG_BOOKING_KEYWORDS = {
     'book', 'booking',
     'catering', 'cater', 'hire', 'rent', 'rental', 'private',
