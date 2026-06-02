@@ -481,6 +481,14 @@ _BOOKING_NOUNS = ['reservation', 'booking', 'appointment', 'event']
 
 # Caller is following up on something they already initiated — distinct from
 # "follow up with her regarding the request" (agent's closure language).
+# Caller asking a question about their existing reservation/booking — not a new inquiry.
+# Catches "their upcoming reservation", "my booking", "our appointment", etc.
+_EXISTING_RESERVATION_RE = re.compile(
+    r'\b(?:their|his|her|my|our)\s+(?:upcoming\s+|existing\s+|current\s+)?'
+    r'(?:reservation|booking|appointment)\b'
+    r'|\bupcoming\s+(?:reservation|booking|appointment)\b'
+)
+
 # Requires the verb to govern the booking noun directly.
 _EXISTING_FOLLOWUP_RE = re.compile(
     r'\b(?:following up on|followed up on|follow up on|'
@@ -811,6 +819,11 @@ def classify_call(call):
         )):
             return 'ignore', 'existing follow-up — caller was transferred'
         return 'email', 'caller following up on prior request'
+
+    # Question about an existing reservation/booking (e.g. parking logistics, directions)
+    # where no explicit follow-up verb is used — "their upcoming reservation", "my booking"
+    if _EXISTING_RESERVATION_RE.search(msg_lower):
+        return 'email', 'question about existing reservation — needs follow-up'
 
     # Confirming/checking on an existing booking — use word boundaries to avoid
     # subword false positives (e.g. 'event' inside 'seventy')
