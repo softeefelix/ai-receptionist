@@ -828,8 +828,11 @@ def classify_call(call):
         return 'email', 'caller following up on existing booking'
 
     # Process/info inquiry — "how to have a truck come", "seeking information on booking"
+    # Guard: if the caller also mentions a specific event type or booking keyword,
+    # they're a real lead — let it fall through to the booking check below.
     if any(phrase in msg_lower for phrase in _PROCESS_INQUIRY_PHRASES):
-        return 'email', 'process/information inquiry — not a booking'
+        if not _BOOKING_RE.search(msg_lower):
+            return 'email', 'process/information inquiry — not a booking'
 
     # Quantity/capacity/pricing/menu question — caller is researching, not booking.
     # Strong booking signal (birthday/wedding/private/etc.) still wins.
@@ -855,9 +858,14 @@ def classify_call(call):
             return 'email', 'route-extension request — needs ops callback, not Jobber'
 
     # Call was handled by agent or transferred — no follow-up needed regardless of keywords.
+    # Exception: if the caller had a booking inquiry, still create a Jobber request so the
+    # lead is captured even if the specialist who took the transfer didn't log anything.
     # Check summary too: Retell sometimes only records the transfer outcome there.
     if any(phrase in msg_lower or phrase in summary_lower for phrase in _TRANSFERRED_PHRASES):
-        return 'ignore', 'call was transferred or agent-handled — no follow-up needed'
+        if _STRONG_BOOKING_RE.search(msg_lower):
+            pass  # fall through to Jobber
+        else:
+            return 'ignore', 'call was transferred or agent-handled — no follow-up needed'
 
     # Delivery inquiry — we don't offer delivery; needs a human to explain
     if _DELIVERY_RE.search(msg_lower) and not _STRONG_BOOKING_RE.search(msg_lower):
