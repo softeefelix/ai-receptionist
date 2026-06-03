@@ -871,14 +871,9 @@ def classify_call(call):
             return 'email', 'route-extension request — needs ops callback, not Jobber'
 
     # Call was handled by agent or transferred — no follow-up needed regardless of keywords.
-    # Exception: if the caller had a booking inquiry, still create a Jobber request so the
-    # lead is captured even if the specialist who took the transfer didn't log anything.
     # Check summary too: Retell sometimes only records the transfer outcome there.
     if any(phrase in msg_lower or phrase in summary_lower for phrase in _TRANSFERRED_PHRASES):
-        if _STRONG_BOOKING_RE.search(msg_lower):
-            pass  # fall through to Jobber
-        else:
-            return 'ignore', 'call was transferred or agent-handled — no follow-up needed'
+        return 'ignore', 'call was transferred or agent-handled — no follow-up needed'
 
     # Delivery inquiry — we don't offer delivery; needs a human to explain
     if _DELIVERY_RE.search(msg_lower) and not _STRONG_BOOKING_RE.search(msg_lower):
