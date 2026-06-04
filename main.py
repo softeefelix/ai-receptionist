@@ -494,7 +494,7 @@ _EXISTING_FOLLOWUP_RE = re.compile(
     r'\b(?:following up on|followed up on|follow up on|'
     r'calling about|calling to follow up on|calling to check on)\s+'
     r'(?:a|an|the|her|his|their|my|our)\s*'
-    r'(?:previous|prior|earlier|original|existing)?\s*'
+    r'(?:previous|prior|earlier|original|existing|event|booking|catering)?\s*'
     r'\b(?:request|booking|reservation|appointment|inquiry|order|email)\b'
 )
 
