@@ -701,6 +701,16 @@ _APP_RESOLUTION_PHRASES = [
     'recommended using the',
 ]
 
+# Truck didn't show for a booked event — needs an immediate human response
+_TRUCK_NO_SHOW_PHRASES = [
+    'not yet arrived', 'has not arrived', 'had not arrived', "hasn't arrived",
+    'not yet appeared', 'has not appeared', 'had not appeared', "hasn't appeared",
+    'not yet shown', 'has not shown up', 'had not shown up', "hasn't shown up",
+    'never arrived', 'never showed', 'did not arrive', 'did not show',
+    'not there yet', 'still not here', "still hasn't",
+    'not show up', 'not showed up',
+]
+
 _SAME_DAY_SIGNALS = [
     'today', 'tonight', 'this afternoon', 'this evening', 'this morning',
     'right now', 'in a few hours', 'in an hour', 'within the hour',
@@ -874,6 +884,10 @@ def classify_call(call):
     # Check summary too: Retell sometimes only records the transfer outcome there.
     if any(phrase in msg_lower or phrase in summary_lower for phrase in _TRANSFERRED_PHRASES):
         return 'ignore', 'call was transferred or agent-handled — no follow-up needed'
+
+    # Truck didn't show for a booked event — urgent, needs immediate human response
+    if any(phrase in msg_lower or phrase in summary_lower for phrase in _TRUCK_NO_SHOW_PHRASES):
+        return 'email', 'urgent: truck no-show for active booking'
 
     # Delivery inquiry — we don't offer delivery; needs a human to explain
     if _DELIVERY_RE.search(msg_lower) and not _STRONG_BOOKING_RE.search(msg_lower):
@@ -1077,7 +1091,8 @@ def route_call(call):
     if action == 'email':
         tag       = 'Voicemail' if analysis.get('in_voicemail') else 'Message'
         sentiment = (analysis.get('user_sentiment') or '').lower()
-        urgent    = 'negative' in sentiment and not analysis.get('call_successful', True)
+        urgent    = ('negative' in sentiment and not analysis.get('call_successful', True)) \
+                    or 'urgent' in reason.lower()
         subject   = f'{"[URGENT] " if urgent else ""}[Mister Softee] {tag} from {from_number}'
         send_email(subject, notes, _format_email_html(call, tag))
         return
