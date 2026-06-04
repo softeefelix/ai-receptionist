@@ -473,7 +473,7 @@ _RETURNING_CALL_PHRASES = [
 # Caller is checking on an existing booking — email, not a new Jobber request
 _EXISTING_BOOKING_VERBS = [
     'confirm', 'confirming', 'check on', 'checking on',
-    'follow up', 'following up', 'verify', 'verifying',
+    'verify', 'verifying',
     'update', 'updating', 'change', 'changing', 'modify', 'modifying',
     'cancel', 'cancelling', 'canceling',
 ]
