@@ -658,13 +658,21 @@ _NEIGHBORHOOD_INQUIRY_PHRASES = [
 ]
 
 # Catches "come by our street", "come by their street", "go down my block",
-# "stop by his neighborhood", etc. — third-person variants matter because
-# Retell paraphrases caller messages in third person.
+# "stop by his neighborhood", "coming by their work area", etc.
+# Third-person and gerund variants matter because Retell paraphrases in third person.
 _NEIGHBORHOOD_INQUIRY_RE = re.compile(
-    r'\b(?:come|go|stop|drive|pass)\s+'
+    r'\b(?:come|coming|go|going|stop|stopping|drive|driving|pass|passing)\s+'
     r'(?:down|by|to|through|along|on)\s+'
     r'(?:our|my|her|his|their|the)\s+'
-    r'(?:street|block|neighborhood|area|location|place|home)\b'
+    r'(?:street|block|neighborhood|area|location|place|home|work)\b'
+)
+
+# Caller explicitly clarifies that a keyword they mentioned isn't the purpose of the call.
+# Used to suppress strong booking overrides in route/neighborhood context.
+_BOOKING_DISCLAIMER_RE = re.compile(
+    r'\bclarified\s+(?:that\s+)?this\s+(?:call|inquiry)\b'
+    r'|\bthis\s+(?:call|inquiry)\s+is\s+(?:not\s+)?about\b'
+    r'|\bmentioned\s+.{0,30}\bbut\s+clarified\b'
 )
 
 # Agent transferred the caller or fully resolved their inquiry — no follow-up needed
@@ -871,13 +879,13 @@ def classify_call(call):
     # Neighborhood/route inquiry — "will you come down Oak Street?" is not a booking
     if (any(phrase in msg_lower for phrase in _NEIGHBORHOOD_INQUIRY_PHRASES)
             or _NEIGHBORHOOD_INQUIRY_RE.search(msg_lower)):
-        if not _STRONG_BOOKING_RE.search(msg_lower):
+        if not _STRONG_BOOKING_RE.search(msg_lower) or _BOOKING_DISCLAIMER_RE.search(msg_lower):
             return 'email', 'neighborhood/route inquiry — no booking intent'
 
     # Route-extension request — "request truck for our area" wants regular
     # service in their neighborhood, not a private booking. Needs an ops callback.
     if any(phrase in msg_lower for phrase in _ROUTE_EXTENSION_PHRASES):
-        if not _STRONG_BOOKING_RE.search(msg_lower):
+        if not _STRONG_BOOKING_RE.search(msg_lower) or _BOOKING_DISCLAIMER_RE.search(msg_lower):
             return 'email', 'route-extension request — needs ops callback, not Jobber'
 
     # Call was handled by agent or transferred — no follow-up needed regardless of keywords.
