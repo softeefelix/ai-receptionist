@@ -640,6 +640,14 @@ _ROUTE_EXTENSION_PHRASES = [
     'add her area', 'add his area', 'add their area',
 ]
 
+# Caller asking whether they can buy/purchase ice cream from a truck — informational.
+# "private" in "at a private event" is a location descriptor, not booking intent.
+_PURCHASE_INQUIRY_RE = re.compile(
+    r'\bif\s+(?:they|he|she|i|we)\s+can\s+(?:purchase|buy)\b'
+    r'|\bwhether\s+(?:they|he|she|i|we)\s+can\s+(?:purchase|buy)\b'
+    r'|\bcan\s+(?:they|he|she|i|we)\s+(?:purchase|buy)\s+ice\s+cream\b'
+)
+
 # Caller asking for delivery — we don't offer delivery; route to email for a human to explain
 _DELIVERY_RE = re.compile(r'\b(?:deliver(?:y|ies|ed)?|delivery\s+service)\b')
 
@@ -896,6 +904,10 @@ def classify_call(call):
     # Truck didn't show for a booked event — urgent, needs immediate human response
     if any(phrase in msg_lower or phrase in summary_lower for phrase in _TRUCK_NO_SHOW_PHRASES):
         return 'email', 'urgent: truck no-show for active booking'
+
+    # Caller asking if they can buy ice cream from a truck — informational, not a booking
+    if _PURCHASE_INQUIRY_RE.search(msg_lower):
+        return 'email', 'purchase inquiry — informational, not a booking'
 
     # Delivery inquiry — we don't offer delivery; needs a human to explain
     if _DELIVERY_RE.search(msg_lower) and not _STRONG_BOOKING_RE.search(msg_lower):
