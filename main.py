@@ -260,13 +260,19 @@ def _jobber_save_tokens(tokens):
     else:
         JOBBER_TOKENS_FILE.write_text(json.dumps(tokens, indent=2))
 
+def _tokens_are_fresh(tokens):
+    # Trust saved_at + expires_in (fallback 1h) so rows missing expires_at don't
+    # force a refresh on every call. Mirrors softeedashboard's logic.
+    saved_at   = tokens.get('saved_at', 0)
+    expires_in = tokens.get('expires_in') or 3600
+    return saved_at and (time.time() - saved_at) < (expires_in - 300)
+
 def get_jobber_token(force_refresh=False):
     tokens = _jobber_load_tokens()
     if not tokens:
         raise RuntimeError('No Jobber tokens — copy jobber_tokens.json from softeedashboard')
 
-    expires_at = tokens.get('expires_at', 0)
-    if not force_refresh and expires_at and time.time() < expires_at - 300:
+    if not force_refresh and _tokens_are_fresh(tokens):
         return tokens['access_token']
 
     data = urllib.parse.urlencode({
@@ -279,10 +285,22 @@ def get_jobber_token(force_refresh=False):
         JOBBER_TOKEN_URL, data=data,
         headers={'Content-Type': 'application/x-www-form-urlencoded'},
     )
-    resp = urllib.request.urlopen(req)
+    try:
+        resp = urllib.request.urlopen(req)
+    except urllib.error.HTTPError as e:
+        # A peer project (softeedashboard / process-jobber-requests) may have
+        # refreshed first and rotated the refresh_token. Reload from the DB and
+        # use the access_token there if it's still fresh.
+        if e.code in (400, 401):
+            reloaded = _jobber_load_tokens()
+            if reloaded and _tokens_are_fresh(reloaded):
+                return reloaded['access_token']
+        raise
     new_tokens = json.loads(resp.read())
     new_tokens['saved_at']   = time.time()
-    new_tokens['expires_at'] = time.time() + new_tokens.get('expires_in', 3600) - 60
+    new_tokens['expires_at'] = time.time() + (new_tokens.get('expires_in') or 3600) - 60
+    if 'refresh_token' not in new_tokens:
+        new_tokens['refresh_token'] = tokens['refresh_token']
     _jobber_save_tokens(new_tokens)
     return new_tokens['access_token']
 
