@@ -1174,9 +1174,11 @@ white-space:pre-wrap;word-break:break-word">{overview}</pre>
 </body></html>""",
             )
         except Exception as e:
-            print(f'[Jobber] Error — falling back to email: {e}')
-            send_email(f'[Mister Softee] Jobber error for {from_number}',
-                       f'Failed to create Jobber request:\n{e}\n\n{notes}')
+            # Do NOT archive this call as processed — re-raise so poll() queues
+            # it in save_failed() for retry.  A silent email fallback would mark
+            # the call as done even though the Jobber request was never created.
+            print(f'[Jobber] Error — will retry (not archiving): {e}')
+            raise
 
 
 # ── Shadow comparison ────────────────────────────────────────────────────────
