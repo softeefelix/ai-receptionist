@@ -484,6 +484,7 @@ _TRUCK_DISPATCH_RE = re.compile(
 # Caller is returning a missed call — route to email unless strong booking intent is clear
 _RETURNING_CALL_PHRASES = [
     'returning a call', 'returning your call', 'returning the call',
+    'returning a phone call', 'returning the phone call', 'returning your phone call',
     'calling back', 'call back', 'missed call', 'received a call',
     'got a call', 'called me', 'you called', 'someone called',
 ]
