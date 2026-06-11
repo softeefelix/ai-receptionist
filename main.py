@@ -225,11 +225,18 @@ def retell_get_call(call_id):
 
 # ── Jobber ────────────────────────────────────────────────────────────────────
 
+# Single-refresher architecture (Jun 2026): the softeedashboard Render web
+# service is the ONLY process that refreshes the shared 'jobber_tokens' row
+# (Jobber rotates refresh tokens — concurrent refreshers kill each other's
+# chain). This poller is a READ-ONLY consumer: when the row looks stale it
+# POSTs the dashboard's refresh endpoint and re-reads. Only if the dashboard
+# is unreachable does it refresh itself, under the same Postgres advisory
+# lock the dashboard uses, with a post-lock re-read so it never double-fires.
+DASHBOARD_REFRESH_URL   = 'https://softeedashboard.onrender.com/api/jobber/refresh-token'
+JOBBER_REFRESH_LOCK_KEY = 727561001  # must match softeedashboard server.py
+
 def _jobber_load_tokens():
     # Shared canonical source: softy_dashboard_app_kv key='jobber_tokens'.
-    # Both ai-receptionist and softeedashboard write here, so whichever
-    # project refreshes last always leaves a valid token for the other —
-    # eliminates the refresh-token rotation conflict between the two projects.
     db = _get_db()
     if db:
         cur = db.cursor()
@@ -267,6 +274,65 @@ def _tokens_are_fresh(tokens):
     expires_in = tokens.get('expires_in') or 3600
     return saved_at and (time.time() - saved_at) < (expires_in - 300)
 
+def _poke_dashboard_refresh(force=False):
+    """Ask the dashboard (the single refresher) to refresh the shared row.
+    Returns True if the dashboard responded OK."""
+    try:
+        body = json.dumps({'force': force}).encode()
+        req = urllib.request.Request(
+            DASHBOARD_REFRESH_URL, data=body,
+            headers={'Content-Type': 'application/json'})
+        with urllib.request.urlopen(req, timeout=90) as resp:
+            result = json.loads(resp.read())
+        print(f"[Jobber] dashboard refresh poke → {result}")
+        return True
+    except Exception as e:
+        print(f"[Jobber] dashboard refresh poke failed: {e}")
+        return False
+
+def _locked_self_refresh(tokens):
+    """LAST RESORT (dashboard unreachable): refresh under the shared Postgres
+    advisory lock. Re-reads the row after acquiring the lock so a refresh that
+    happened while we waited is used instead of double-firing."""
+    db = _get_db()
+    lock_cur = None
+    if db:
+        lock_cur = db.cursor()
+        lock_cur.execute('SELECT pg_advisory_lock(%s)', (JOBBER_REFRESH_LOCK_KEY,))
+    try:
+        reloaded = _jobber_load_tokens() or tokens
+        if reloaded.get('saved_at') != tokens.get('saved_at'):
+            return reloaded['access_token']  # someone else refreshed while we waited
+        tokens = reloaded
+        print('[Jobber] dashboard unreachable — locked self-refresh (last resort)')
+        data = urllib.parse.urlencode({
+            'client_id':     tokens.get('client_id')     or JOBBER_CLIENT_ID,
+            'client_secret': tokens.get('client_secret') or JOBBER_CLIENT_SECRET,
+            'grant_type':    'refresh_token',
+            'refresh_token': tokens['refresh_token'],
+        }).encode()
+        req = urllib.request.Request(
+            JOBBER_TOKEN_URL, data=data,
+            headers={'Content-Type': 'application/x-www-form-urlencoded'},
+        )
+        resp = urllib.request.urlopen(req)
+        new_tokens = json.loads(resp.read())
+        if not new_tokens.get('expires_in'):
+            new_tokens['expires_in'] = 3600
+        new_tokens['expires_at'] = time.time() + new_tokens['expires_in'] - 60
+        if 'refresh_token' not in new_tokens:
+            new_tokens['refresh_token'] = tokens['refresh_token']
+        new_tokens['client_id']     = tokens.get('client_id')     or JOBBER_CLIENT_ID
+        new_tokens['client_secret'] = tokens.get('client_secret') or JOBBER_CLIENT_SECRET
+        _jobber_save_tokens(new_tokens)
+        return new_tokens['access_token']
+    finally:
+        if lock_cur is not None:
+            try:
+                lock_cur.execute('SELECT pg_advisory_unlock(%s)', (JOBBER_REFRESH_LOCK_KEY,))
+            except Exception:
+                pass
+
 def get_jobber_token(force_refresh=False):
     tokens = _jobber_load_tokens()
     if not tokens:
@@ -275,34 +341,15 @@ def get_jobber_token(force_refresh=False):
     if not force_refresh and _tokens_are_fresh(tokens):
         return tokens['access_token']
 
-    data = urllib.parse.urlencode({
-        'client_id':     JOBBER_CLIENT_ID,
-        'client_secret': JOBBER_CLIENT_SECRET,
-        'grant_type':    'refresh_token',
-        'refresh_token': tokens['refresh_token'],
-    }).encode()
-    req = urllib.request.Request(
-        JOBBER_TOKEN_URL, data=data,
-        headers={'Content-Type': 'application/x-www-form-urlencoded'},
-    )
-    try:
-        resp = urllib.request.urlopen(req)
-    except urllib.error.HTTPError as e:
-        # A peer project (softeedashboard / process-jobber-requests) may have
-        # refreshed first and rotated the refresh_token. Reload from the DB and
-        # use the access_token there if it's still fresh.
-        if e.code in (400, 401):
-            reloaded = _jobber_load_tokens()
-            if reloaded and _tokens_are_fresh(reloaded):
-                return reloaded['access_token']
-        raise
-    new_tokens = json.loads(resp.read())
-    new_tokens['saved_at']   = time.time()
-    new_tokens['expires_at'] = time.time() + (new_tokens.get('expires_in') or 3600) - 60
-    if 'refresh_token' not in new_tokens:
-        new_tokens['refresh_token'] = tokens['refresh_token']
-    _jobber_save_tokens(new_tokens)
-    return new_tokens['access_token']
+    # Stale (or we just got a 401): ask the single refresher, then re-read.
+    if _poke_dashboard_refresh(force=force_refresh):
+        reloaded = _jobber_load_tokens()
+        if reloaded and (_tokens_are_fresh(reloaded)
+                         or reloaded.get('saved_at') != tokens.get('saved_at')):
+            return reloaded['access_token']
+
+    # Dashboard down or didn't help — refresh ourselves under the shared lock.
+    return _locked_self_refresh(tokens)
 
 def jobber_query(query, variables=None, _attempt=0):
     token = get_jobber_token()
