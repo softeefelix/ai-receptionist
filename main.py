@@ -979,12 +979,24 @@ def classify_call(call):
     if _DELIVERY_RE.search(msg_lower) and not _STRONG_BOOKING_RE.search(msg_lower):
         return 'email', 'delivery inquiry — we do not offer delivery'
 
-    # New booking/event inquiry — only check caller_message to avoid false positives
-    if (_BOOKING_RE.search(msg_lower) or
-            _TRUCK_DISPATCH_RE.search(msg_lower)):
+    # New booking/event inquiry — only check caller_message to avoid false positives.
+    # A real booking has booking nouns/keywords (party, event, catering, birthday,
+    # wedding, etc.) → Jobber. A bare truck-dispatch phrase ("requesting a truck",
+    # "send a truck") with NO booking specifics is just an ask for a truck to come
+    # somewhere; it needs a human to call back and gather event details, so it is an
+    # email to process — NOT an auto-created Jobber request. (Per Felix 2026-06-12:
+    # "requesting a truck should not lead to a jobber request; it should be an email
+    # we can process." False-positive that prompted this: Jobber Request 30690176 —
+    # caller said "request a truck", left no details, call dropped before contact info.)
+    booking_kw = bool(_BOOKING_RE.search(msg_lower))
+    truck_dispatch = bool(_TRUCK_DISPATCH_RE.search(msg_lower))
+    if booking_kw or truck_dispatch:
         # Same-day events need an immediate response, not a Jobber ticket
         if _is_same_day_event(call):
             return 'slack', 'same-day event request — needs immediate response'
+        if not booking_kw:
+            # Truck-dispatch phrase only, no booking specifics → email for follow-up
+            return 'email', 'bare truck request — no booking details; needs ops callback, not Jobber'
         return 'jobber', 'booking/service keywords detected'
 
     # Caller left a substantive message but no booking intent → email.
