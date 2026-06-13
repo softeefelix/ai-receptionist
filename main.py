@@ -644,6 +644,23 @@ _AGENT_BOOKING_EXPLANATION_RE = re.compile(
     r'|\b(?:public\s+and\s+)?private\s+event\s+locations?\b'
 )
 
+# Negated-event descriptors: the caller is asking for a truck that is NOT booked
+# at an event (i.e. a public / roaming truck) — the OPPOSITE of booking intent.
+# "where to find a truck that is not at a private event" is a location inquiry;
+# the words "private"/"event" here are negated descriptors, not booking signal.
+# Strip these before testing _STRONG_BOOKING_RE so a location lookup isn't
+# misrouted to Jobber. False-positive that prompted this: Jobber Request 30703416
+# / call_c810a3a4b11f4df22a89579c8c4 — caller wanted to find a truck NOT at a
+# private event; "private" tripped _STRONG_BOOKING_RE and voided the location
+# guard, creating a bogus Jobber request (Felix, 2026-06-13).
+_NEGATED_EVENT_RE = re.compile(
+    r"\b(?:not|isn't|is\s+not|aren't|are\s+not|that's\s+not|that\s+is\s+not|"
+    r"which\s+is\s+not|without\s+being)\s+(?:currently\s+)?"
+    r"(?:at|booked\s+(?:at|for)|reserved\s+for|part\s+of|attending)\s+"
+    r"(?:a\s+|an\s+|any\s+)?(?:private\s+)?(?:event|party|function|booking)s?\b"
+    r"|\bnot\s+(?:a\s+)?(?:private\s+)?(?:event|party|function|booking)\b"
+)
+
 # Caller asking where a truck is right now — real-time info that can't be
 # answered later, so ignore (don't email or Jobber). Matches Retell's third-
 # person summaries: "wants to know where the truck is", "wanted to know if
@@ -851,6 +868,9 @@ def classify_call(call):
     # doesn't falsely override a genuine location inquiry.
     if _LOCATION_INQUIRY_RE.search(msg_lower):
         msg_no_explanation = _AGENT_BOOKING_EXPLANATION_RE.sub('', msg_lower)
+        # Also strip negated-event descriptors ("not at a private event") so a
+        # caller looking for a public/roaming truck isn't misread as a booking.
+        msg_no_explanation = _NEGATED_EVENT_RE.sub('', msg_no_explanation)
         if not _STRONG_BOOKING_RE.search(msg_no_explanation):
             return 'ignore', 'real-time truck location inquiry — no useful follow-up'
 
