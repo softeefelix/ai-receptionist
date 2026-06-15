@@ -1,9 +1,18 @@
 # Retell Conversation Flow — Live Map & Operating Notes
 
-Flow: `conversation_flow_857707ec18b2` (v2, published) on LIVE agent `agent_bacf3ae8d660ed30dbd2e81169`
-Phone: (510) 513-8978 (retell-twilio). Snapshot: `flow_live_20260609.json` (re-pull before ANY edit).
+Flow: `conversation_flow_857707ec18b2` (v5, live) on LIVE agent `agent_bacf3ae8d660ed30dbd2e81169` (agent v5)
+Phone: (510) 513-8978 (retell-twilio, NOT version-pinned → follows live flow).
+Snapshot: `flow_live_20260615_emergency_breakthrough.json` (re-pull before ANY edit).
 Voice: cartesia-Grace · Model: claude-4.6-sonnet (cascading) · temp 0 · strict tools
-Last audited: 2026-06-09 by Hermes.
+Last audited: 2026-06-09 by Hermes. Last edit: 2026-06-15 (emergency breakthrough).
+
+⚠ VERSION NOTE: `get-agent` reports `is_published: False` for v5 but v5 IS the live
+serving version (confirmed: live calls run on agent_version=5; agent response_engine
+points at flow v5). The is_published flag is cosmetically stale on this account — trust
+the version the actual recent calls ran on, not the flag. `update-conversation-flow`
+PATCH edits the live flow in place and takes effect immediately (no publish step needed).
+
+⚠ Transfer destination is now +1 510-xxx-6881 (NOT the old 404-xxx-3209 in older notes).
 
 ## Persona
 "Lauryn" — global prompt enforces: (1) MANDATORY read-back + confirmation of all
@@ -27,9 +36,20 @@ START: Master Node (start-node-1771567118373)  [greeting, KBs: app/payment/sched
   └─ else (catch-all) ───────────────────────────────────→ Catch-All
 
 Logic Split (branch on {{current_hour}}, built-in Retell var, America/Los_Angeles, fraction e.g. "13.5"):
-  ├─ 11.5 ≤ h < 17  → Transfer Call (warm transfer → +140****3209, 20s ring)
-  ├─ 9 ≤ h < 11.5   → Take a message morning rollout ("team is getting trucks out")
-  └─ else           → Take a message off hours ("office hours 9–5 PT, 7 days")
+  ├─ 11.5 ≤ h < 17  → Transfer Call (warm transfer → +1 510-xxx-6881, 20s ring)
+  ├─ 9 ≤ h < 11.5   → Take a message morning rollout (+ EMERGENCY breakthrough → Transfer Call)
+  └─ else           → Take a message off hours (+ EMERGENCY breakthrough → Transfer Call)
+
+EMERGENCY BREAKTHROUGH (added 2026-06-15): The two no-transfer windows (morning
+rollout 9–11.5, off-hours) each have an edge to Transfer Call that fires ONLY on a
+genuine time-critical emergency (truck/driver accident, fire/safety incident, injury,
+urgent live-event problem). Edge is ordered FIRST so it's evaluated before take-a-
+message. Both nodes also carry an anti-fabrication instruction: the agent must NOT
+say it's connecting/transferring and must NEVER claim "no one picked up" outside a
+real emergency — it just takes a message. Origin: 10:37 AM 6/15 call
+(call_4fef6ebb068e72d6815bea4a014) where the agent faked "no one was able to pick up"
+to an insistent caller at 10:37 (morning-rollout window) — no transfer was ever placed
+(empty tool_calls; node path Master→Logic Split→morning rollout, never touched Transfer).
 
 Transfer Call:
   └─ on failure → Take a message - transfer no one picked up
