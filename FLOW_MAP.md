@@ -12,7 +12,11 @@ points at flow v5). The is_published flag is cosmetically stale on this account 
 the version the actual recent calls ran on, not the flag. `update-conversation-flow`
 PATCH edits the live flow in place and takes effect immediately (no publish step needed).
 
-⚠ Transfer destination is now +1 510-xxx-6881 (NOT the old 404-xxx-3209 in older notes).
+⚠ Transfer destination is +1 510-xxx-6881 (Felix-confirmed 2026-06-15). NOTE: history
+shows the PROVEN line was +1 408-xxx-3209 (68 successful transfers Jun 10–12, still rang
+Jun 14); the 510 number was an undocumented swap with ZERO prior successful transfers.
+Felix explicitly chose to KEEP 510-xxx-6881 (2026-06-15) — do not "restore" 408 without
+his say-so. If emergency transfers don't ring, this number is the first suspect.
 
 ## Persona
 "Lauryn" — global prompt enforces: (1) MANDATORY read-back + confirmation of all
@@ -23,6 +27,7 @@ no "are you still there", (4) clarify confusing responses instead of bailing,
 ## Node graph (16 nodes)
 
 START: Master Node (start-node-1771567118373)  [greeting, KBs: app/payment/schedule]
+  ├─ EMERGENCY / urgent "need a person NOW" ─────────────→ Transfer Call (DIRECT, any hour) [added 2026-06-15]
   ├─ truck late / no-show for booked event ──────────────→ Transfer Call (DIRECT, any hour)
   ├─ urgent OR existing-booking help ────────────────────→ Logic Split
   ├─ asks for person by name / operator ─────────────────→ Logic Split
