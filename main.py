@@ -59,6 +59,12 @@ REPEAT_CALLER_WINDOW_MS   = 4 * 60 * 60 * 1000   # look back 4 hours
 REPEAT_CALLER_ALERT_TTL_MS = 24 * 60 * 60 * 1000  # re-alert cooldown per number
 DB_URL               = os.environ.get('DB_URL', '')   # Render PostgreSQL; enables cloud-safe state
 
+# Staff names — when a caller mentions any of these, the call can only be
+# routed to email so a human can forward it to that person. No Jobber request.
+KNOWN_NAMES = {
+    'chelsey', 'kelsey', 'kelsey m',  # caller "Chelsey" → email only
+}
+
 
 # ── Database (optional — local file fallback when DB_URL is unset) ────────────
 
@@ -621,6 +627,14 @@ _INFO_RELAY_PHRASES = [
 # Matches "let Lenny know", "let her know", etc. — directed at a named contact
 _LET_KNOW_RE = re.compile(r'\blet \w+ know\b')
 
+# Known staff names — word-boundary regex built from KNOWN_NAMES above.
+# If a caller mentions any of these, the call can ONLY be an email so a
+# human can forward to that person.  Never becomes a Jobber request.
+_KNOWN_NAMES_PATTERN = re.compile(
+    r'\b(?:' + '|'.join(re.escape(n) for n in sorted(KNOWN_NAMES, key=len, reverse=True)) + r')\b',
+    re.IGNORECASE,
+)
+
 # Caller is specifically trying to reach a named person — email even if no message left
 _TRYING_TO_REACH_PHRASES = [
     'trying to reach',
@@ -868,11 +882,15 @@ def classify_call(call):
     # doesn't falsely override a genuine location inquiry.
     if _LOCATION_INQUIRY_RE.search(msg_lower):
         msg_no_explanation = _AGENT_BOOKING_EXPLANATION_RE.sub('', msg_lower)
-        # Also strip negated-event descriptors ("not at a private event") so a
-        # caller looking for a public/roaming truck isn't misread as a booking.
         msg_no_explanation = _NEGATED_EVENT_RE.sub('', msg_no_explanation)
         if not _STRONG_BOOKING_RE.search(msg_no_explanation):
             return 'ignore', 'real-time truck location inquiry — no useful follow-up'
+
+    # Known staff name → email only no matter what else is in the message.
+    # Caller intent is to reach a person; that's email, not a booking.
+    _name_match = _KNOWN_NAMES_PATTERN.search(msg_lower)
+    if _name_match:
+        return 'email', f'caller asked for known staff ({_name_match.group()}) — email only, no Jobber request'
 
     # Caller wants service NOW from a truck they see / a nearby truck.
     # Jobber requests are future-looking; "happening now" intent → email.
