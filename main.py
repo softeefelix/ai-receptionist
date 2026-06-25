@@ -246,7 +246,7 @@ def _jobber_load_tokens():
     db = _get_db()
     if db:
         cur = db.cursor()
-        cur.execute("SELECT value FROM softy_dashboard_app_kv WHERE key = 'jobber_tokens'")
+        cur.execute("SELECT value FROM softy_dashboard_app_kv WHERE key = 'jobber_tokens_fleet'")
         row = cur.fetchone()
         if row:
             return json.loads(row[0])
@@ -266,7 +266,7 @@ def _jobber_save_tokens(tokens):
         cur = db.cursor()
         cur.execute("""
             INSERT INTO softy_dashboard_app_kv (key, value, updated_at)
-            VALUES ('jobber_tokens', %s, NOW())
+            VALUES ('jobber_tokens_fleet', %s, NOW())
             ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
         """, (json.dumps(tokens),))
         db.commit()
@@ -1476,7 +1476,7 @@ def _in_operating_hours():
     pt_hour  = (utc_hour - 7) % 24   # approximate PDT (UTC-7); off by 1h in winter
     return 7 <= pt_hour < 22
 
-def _send_poll_summary(counts, since_str):
+def _send_poll_summary(counts, errors, since_str):
     """Post a Slack summary after each poll run."""
     total = sum(counts.values())
     if total == 0:
@@ -1492,6 +1492,11 @@ def _send_poll_summary(counts, since_str):
         lines.append(f'  :mute: Ignored (agent handled): {counts["ignore"]}')
     if counts.get('error'):
         lines.append(f'  :warning: Routing errors: {counts["error"]}')
+        # Include the actual error messages (first 2, truncated)
+        for i, err in enumerate(errors[:2]):
+            cid = err.get('call_id', '')[:20]
+            msg = err.get('error', '')[:120]
+            lines.append(f'      `{cid}` {msg}')
     send_slack('\n'.join(lines))
 
 
@@ -1514,6 +1519,7 @@ def poll():
     print(f'[Poll] {len(calls)} calls since {ts_str}')
 
     counts = {'jobber': 0, 'slack': 0, 'email': 0, 'ignore': 0, 'error': 0}
+    errors = []
     db     = _get_db()
 
     for call in calls:
@@ -1571,6 +1577,7 @@ def poll():
             })
             save_failed(existing)
             counts['error'] += 1
+            errors.append({'call_id': call_id, 'error': str(e)})
 
         shadow_log(call)
 
@@ -1582,7 +1589,7 @@ def poll():
 
     save_state(state)
 
-    _send_poll_summary(counts, ts_str)
+    _send_poll_summary(counts, errors, ts_str)
 
 
 if __name__ == '__main__':
