@@ -347,14 +347,10 @@ def get_jobber_token(force_refresh=False):
     if not force_refresh and _tokens_are_fresh(tokens):
         return tokens['access_token']
 
-    # Stale (or we just got a 401): ask the single refresher, then re-read.
-    if _poke_dashboard_refresh(force=force_refresh):
-        reloaded = _jobber_load_tokens()
-        if reloaded and (_tokens_are_fresh(reloaded)
-                         or reloaded.get('saved_at') != tokens.get('saved_at')):
-            return reloaded['access_token']
-
-    # Dashboard down or didn't help — refresh ourselves under the shared lock.
+    # Stale — refresh directly under the shared advisory lock.
+    # The poller shares the same Postgres DB as the dashboard, so it can
+    # refresh tokens itself without an HTTP poke to a service that may
+    # be cold-starting. The lock prevents races with the dashboard.
     return _locked_self_refresh(tokens)
 
 def jobber_query(query, variables=None, _attempt=0):
