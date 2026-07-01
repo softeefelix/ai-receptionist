@@ -573,6 +573,20 @@ _NO_MESSAGE_INDICATORS = [
     'did not have a clear request', 'no coherent request',
 ]
 
+# Caller expressed booking/catering interest but the call ended before ANY
+# actionable detail was captured (no contact info, no event specifics). A
+# Jobber request built from this is an empty shell — route to email so a human
+# can call the number back and gather details. (Felix 2026-07-01: Request
+# 31315246 / call_ee94d8ee753f3357fcad2ee7a96 — "catering" tripped _BOOKING_RE
+# but the summary said "the call ended before the caller provided contact
+# details"; no name, email, date, size, or location.)
+_NO_ACTIONABLE_DETAILS_RE = re.compile(
+    r'ended before .*?(?:provid|leav|gav|gave|shar).*?(?:contact|detail|info|number|email|name)'
+    r'|(?:did not|didn.?t|never|without)\s+(?:provid\w*|leav\w*|giv\w*|gave|shar\w*)'
+    r'.{0,30}?(?:contact|detail|info|phone number|email|name)'
+    r'|before (?:provid\w*|leav\w*|shar\w*).{0,30}?(?:contact|detail)'
+)
+
 # Caller asking how the process works — informational inquiry, not a booking
 _PROCESS_INQUIRY_PHRASES = [
     'seeking information',
@@ -1028,6 +1042,13 @@ def classify_call(call):
         # Same-day events need an immediate response, not a Jobber ticket
         if _is_same_day_event(call):
             return 'slack', 'same-day event request — needs immediate response'
+        # Booking/catering interest but the call ended before ANY actionable
+        # detail was captured (no email on file AND summary says the caller
+        # never provided contact/details). A Jobber request here is an empty
+        # shell — route to email so a human can call the number back.
+        if (not caller_email
+                and _NO_ACTIONABLE_DETAILS_RE.search(combined)):
+            return 'email', 'booking interest but no actionable details captured — needs ops callback, not Jobber'
         if not booking_kw:
             # Truck-dispatch phrase only, no booking specifics → email for follow-up
             return 'email', 'bare truck request — no booking details; needs ops callback, not Jobber'
