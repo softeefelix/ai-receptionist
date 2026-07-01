@@ -587,6 +587,24 @@ _NO_ACTIONABLE_DETAILS_RE = re.compile(
     r'|before (?:provid\w*|leav\w*|shar\w*).{0,30}?(?:contact|detail)'
 )
 
+# Call did not actually complete: the agent tried to hand off / transfer and it
+# failed, or the caller dropped/went silent, so no booking specifics were ever
+# collected. The only "booking" words present are the AGENT's own framing of a
+# one-word ask ("Quote?" / "Catering?"), not caller-supplied details. These are
+# empty-shell Jobber requests — route to email for an ops callback instead.
+# (Felix 2026-07-01: Request 31320907 / call_3808e19ccb6abae51488d8d3cdf —
+# caller said only "Quote?", transfer to a specialist failed, call ended; the
+# word "booking" in the agent summary tripped _BOOKING_RE.)
+_INCOMPLETE_CALL_RE = re.compile(
+    r'(?:failed|unsuccessful|could\s*n.?t|did\s*not|was\s*not|couldn.?t|wasn.?t)'
+    r'.{0,40}?(?:transfer|connect|complet|reach)'
+    r'|(?:transfer|call)\s+(?:did not|was not|failed|didn.?t|wasn.?t)'
+    r'|(?:transfer|call)\s+(?:not\s+)?(?:completed|connect(?:ed)?)\b.{0,20}?(?:fail|unsuccess|did not|no human)'
+    r'|call (?:ended|dropped|disconnected) (?:after|before|due to|following) '
+    r'(?:the |a |an )?(?:failed |unsuccessful )?(?:transfer|attempt)'
+    r'|did not connect to a human|no human (?:was )?available'
+)
+
 # Caller asking how the process works — informational inquiry, not a booking
 _PROCESS_INQUIRY_PHRASES = [
     'seeking information',
@@ -1042,12 +1060,14 @@ def classify_call(call):
         # Same-day events need an immediate response, not a Jobber ticket
         if _is_same_day_event(call):
             return 'slack', 'same-day event request — needs immediate response'
-        # Booking/catering interest but the call ended before ANY actionable
-        # detail was captured (no email on file AND summary says the caller
-        # never provided contact/details). A Jobber request here is an empty
-        # shell — route to email so a human can call the number back.
+        # Booking/catering interest but the call never captured actionable
+        # details — either the summary says no contact/details were provided,
+        # OR the call didn't complete (failed transfer, caller dropped) so the
+        # only "booking" words are the agent's framing of a one-word ask. With
+        # no email on file these are empty-shell requests → email for callback.
         if (not caller_email
-                and _NO_ACTIONABLE_DETAILS_RE.search(combined)):
+                and (_NO_ACTIONABLE_DETAILS_RE.search(combined)
+                     or _INCOMPLETE_CALL_RE.search(combined))):
             return 'email', 'booking interest but no actionable details captured — needs ops callback, not Jobber'
         if not booking_kw:
             # Truck-dispatch phrase only, no booking specifics → email for follow-up
