@@ -960,13 +960,17 @@ def classify_call(call):
             return 'email', 'caller expressed booking intent but left no details — needs follow-up'
         return 'ignore', 'caller left no specific message'
 
-    # Returning a missed call — email, UNLESS strong new-booking intent is present.
-    # Use word-boundary regex so 'rent' doesn't fire on 'renting', etc.
+    # Returning a missed call — ALWAYS email, full stop, no exceptions.
+    # "Returning a call" intent trumps every other signal (booking keywords,
+    # transfer detection, etc.) — a caller calling Mister Softee back always
+    # needs a human to know they called, even if the agent transferred them
+    # somewhere in the meantime. Per Felix 2026-07-20: previously the strong-
+    # booking override misrouted a plain callback to Jobber (Request 31952869,
+    # "requested to be connected to the appropriate party" — "party" falsely
+    # matched _STRONG_BOOKING_RE), and the transfer check would have separately
+    # suppressed it to 'ignore'. Felix confirmed: return-call context should
+    # win over both and always produce an email.
     if any(phrase in msg_lower for phrase in _RETURNING_CALL_PHRASES):
-        if _STRONG_BOOKING_RE.search(msg_lower):
-            return 'jobber', 'callback context but primary intent is a new booking'
-        if any(phrase in msg_lower or phrase in summary_lower for phrase in _TRANSFERRED_PHRASES):
-            return 'ignore', 'returning call — caller was transferred, no follow-up needed'
         return 'email', 'caller returning a missed call'
 
     # Caller explicitly following up on something they initiated previously
