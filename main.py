@@ -897,6 +897,23 @@ def classify_call(call):
     if in_voicemail:
         return 'email', 'voicemail'
 
+    # Successful transfer — the call was fully handled by a human already.
+    # This is the single most authoritative signal and trumps everything else
+    # in this function (returning-call phrasing, booking keywords, staff
+    # names, etc.) — a transferred caller doesn't need an email or a Jobber
+    # request regardless of what they said before the transfer connected.
+    # disconnection_reason == 'call_transfer' is Retell's own field marking
+    # that the call ended specifically because it was successfully bridged to
+    # a transfer target (confirmed via Transfer Call node: 96/101 calls that
+    # reached it ended with call_transfer; the other 5 were caller hangups
+    # mid-transfer, which correctly do NOT get this reason code).
+    # Per Felix 2026-07-27: call_82fa965c03fe660c0d5bff34045 was a successful
+    # transfer that still got emailed because the returning-call branch below
+    # doesn't check transfer status — this check now runs first so it can't
+    # happen again.
+    if call.get('disconnection_reason') == 'call_transfer':
+        return 'ignore', 'call was successfully transferred — no follow-up needed'
+
     # Agent explicitly flagged this as a location/app lookup, or caller resolved it via app
     if _LOCATION_INQUIRY_MARKER in msg_lower:
         return 'ignore', 'location/app inquiry — agent handled'
