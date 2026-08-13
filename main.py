@@ -62,7 +62,9 @@ DB_URL               = os.environ.get('DB_URL', '')   # Render PostgreSQL; enabl
 # Staff names — when a caller mentions any of these, the call can only be
 # routed to email so a human can forward it to that person. No Jobber request.
 KNOWN_NAMES = {
-    'chelsey', 'kelsey', 'kelsey m',  # caller "Chelsey" → email only
+    'chelsey', 'chelsea',  # Retell often spells it Chelsea
+    'kelsey', 'kelsey m',
+    'felix', 'andrew', 'marie', 'lenie',
 }
 
 
@@ -708,15 +710,18 @@ _NEGATED_EVENT_RE = re.compile(
 # person summaries: "wants to know where the truck is", "wanted to know if
 # the truck was on the road", "wants to know the current location", etc.
 _LOCATION_INQUIRY_RE = re.compile(
-    r'\b(?:wants?|wanted) to know\s+(?:'
+    r'\b(?:wants?|wanted) to know\s+('
     r'the\s+(?:current\s+)?location|'
     r'where\s+(?:the\s+|a\s+|any\s+)?(?:mister\s+softee\s+)?(?:truck|trucks)|'
+    r'if\s+there\s+(?:was|is)\s+(?:a\s+|any\s+)?(?:mister\s+softee\s+)?(?:ice\s+cream\s+)?(?:truck|trucks)|'
     r'if\s+(?:the\s+|a\s+|any\s+)?(?:mister\s+softee\s+)?(?:truck|trucks)\s+(?:is|are|was|were|will)|'
     r'whether\s+(?:the\s+|a\s+|any\s+)?(?:mister\s+softee\s+)?(?:truck|trucks)\s+(?:is|are|was|were|will)'
     r')\b'
     r'|\b(?:asking|inquiring|inquired|asked)\s+(?:about|for)\s+(?:the\s+)?(?:current\s+)?(?:truck\s+)?location\b'
+    r'|\binquired about the current location\b'
     r'|\b(?:location\s+of|where\s+to\s+find|closest|nearest)\s+(?:the\s+|a\s+|any\s+)?(?:mister\s+softee\s+)?(?:truck|trucks)\b'
     r'|\b(?:requesting\s+(?:assistance\s+)?to\s+locate|trying\s+to\s+(?:locate|find)|unable\s+to\s+(?:locate|find|see))\s+(?:the\s+|a\s+)?(?:mister\s+softee\s+)?(?:ice\s+cream\s+)?(?:truck|trucks)\b'
+    r'|\btruck currently in\b'
 )
 
 # Caller wants service "right now" from a truck they can see / that's nearby.
@@ -858,6 +863,94 @@ _SAME_DAY_SIGNALS = [
 ]
 
 
+# ── Purpose / context (evaluated BEFORE trigger-word routing) ────────────────
+# Trigger words (party, event, corporate, booking) describe the TOPIC of many
+# calls that are not new bookings. Infer what the caller is actually trying
+# to accomplish from the full message+summary, then let keywords only support
+# that purpose — never override it.
+
+_RECEIPT_RE = re.compile(
+    r'\b(?:receipt|invoice|payment invoice)\b'
+)
+_REFUND_RE = re.compile(r'\brefunds?\b')
+_RESCHEDULE_RE = re.compile(r'\breschedul(?:e|ed|ing)\b')
+_ALREADY_BOOKED_RE = re.compile(
+    r'\balready booked\b'
+    r'|\bhas already booked\b'
+    r'|\bshe has already booked\b'
+    r'|\ban event (?:she|he|they) has already booked\b'
+    r'|\bexisting (?:booking|reservation|appointment)\b'
+    r'|\b(?:their|his|her|my|our) (?:upcoming |existing |current )?(?:reservation|booking)\b'
+)
+_QUOTE_FOLLOWUP_RE = re.compile(
+    r'\bfollow(?:ing)? up on (?:a |the |her |his |their )?(?:quote|estimate)\b'
+    r'|\bquote (?:includes?|include|included)\b'
+    r'|\bwhether the quote\b'
+    r'|\bconfirm whether the quote\b'
+)
+_VENDOR_PITCH_RE = re.compile(
+    r'\b(?:rebuilding|rebuild) (?:the |their |your )?(?:mobile )?app\b'
+    r'|\bcorporate inquiry to offer\b'
+    r'|\boffer of discounted\b'
+    r'|\bdiscounted diesel\b'
+    r'|\beld services\b'
+    r'|\bowner operators\b'
+    r'|\btrucking companies\b'
+)
+_TRACK_EXISTING_RE = re.compile(
+    r'\btrack(?:ing)? (?:the |a )?(?:mister softee )?(?:ice cream )?truck\b'
+    r'|\btracking options\b'
+    r'|\btrack the truck coming to\b'
+)
+_NEW_BOOKING_INTENT_RE = re.compile(
+    r'\b(?:looking to book|wants? to book|wanting to book|'
+    r'requesting to (?:book|rent|reserve|hire)|'
+    r'requesting a (?:catering quote|quote for)|'
+    r'book catering|book a (?:mister softee )?truck|'
+    r'arrange (?:a |an )?(?:party |catering |private )?(?:booking|event)|'
+    r'rent an ice cream truck|hire a mister softee)\b'
+)
+
+
+def _infer_purpose(msg_lower, summary_lower):
+    """What is this call actually about? Keywords come later.
+
+    Returns one of:
+      receipt | refund | reschedule | already_booked | quote_followup |
+      vendor | track_existing | new_booking | None
+    """
+    combined = f'{msg_lower} {summary_lower}'
+
+    if _RECEIPT_RE.search(combined):
+        return 'receipt'
+    if _REFUND_RE.search(combined):
+        return 'refund'
+    if _RESCHEDULE_RE.search(combined):
+        return 'reschedule'
+    if _QUOTE_FOLLOWUP_RE.search(combined):
+        return 'quote_followup'
+    if _VENDOR_PITCH_RE.search(combined):
+        return 'vendor'
+    if _ALREADY_BOOKED_RE.search(combined):
+        return 'already_booked'
+    # track_existing is applied later — after location/app guards — so a
+    # "where's the truck / use the app" call isn't reclassified as email.
+    if _NEW_BOOKING_INTENT_RE.search(combined):
+        return 'new_booking'
+    return None
+
+
+_PURPOSE_EMAIL_REASONS = {
+    'receipt': 'context: receipt/invoice for a past event — not a new booking',
+    'refund': 'context: refund/complaint on an existing booking — not a new booking',
+    'reschedule': 'context: reschedule of an existing reservation — not a new booking',
+    'already_booked': 'context: logistics on an already-booked event — not a new booking',
+    'quote_followup': 'context: follow-up on an existing quote — not a new booking',
+    'vendor': 'context: vendor/sales pitch — not a booking',
+    'track_existing': 'context: tracking a truck for an existing event — not a new booking',
+}
+
+
 def _is_same_day_event(call):
     """True when the caller's event is today — triggers Slack escalation."""
     analysis    = call.get('call_analysis') or {}
@@ -879,6 +972,11 @@ def _is_same_day_event(call):
 
 def classify_call(call):
     """Returns ('jobber' | 'slack' | 'email' | 'ignore', reason).
+
+    Context first, keywords second. Infer the caller's purpose from the
+    full message + summary (receipt, refund, reschedule, already-booked
+    logistics, quote follow-up, vendor pitch) BEFORE any trigger word
+    (party / event / corporate / booking) can create a Jobber request.
 
     'slack' = same-day event request needing immediate attention.
 
@@ -914,6 +1012,17 @@ def classify_call(call):
     if call.get('disconnection_reason') == 'call_transfer':
         return 'ignore', 'call was successfully transferred — no follow-up needed'
 
+    # CONTEXT FIRST. Understand what the caller is trying to do from the
+    # full message + summary before any trigger-word (party/event/corporate/
+    # booking) can create a Jobber request. Keywords describe the topic of
+    # many calls that are receipts, refunds, quote follow-ups, vendor pitches,
+    # or logistics on an already-booked event.
+    purpose = _infer_purpose(msg_lower, summary_lower)
+    if purpose in _PURPOSE_EMAIL_REASONS:
+        return 'email', _PURPOSE_EMAIL_REASONS[purpose]
+    # purpose == 'new_booking' or None: fall through. Keywords may still
+    # create a Jobber request, but only after the remaining context guards.
+
     # Agent explicitly flagged this as a location/app lookup, or caller resolved it via app
     if _LOCATION_INQUIRY_MARKER in msg_lower:
         return 'ignore', 'location/app inquiry — agent handled'
@@ -928,8 +1037,21 @@ def classify_call(call):
     if _LOCATION_INQUIRY_RE.search(msg_lower):
         msg_no_explanation = _AGENT_BOOKING_EXPLANATION_RE.sub('', msg_lower)
         msg_no_explanation = _NEGATED_EVENT_RE.sub('', msg_no_explanation)
-        if not _STRONG_BOOKING_RE.search(msg_no_explanation):
+        # "where's the truck" that also asks us to send/stop-by is a dispatch,
+        # not a map lookup — don't ignore those.
+        asking_for_a_visit = (
+            bool(_TRUCK_DISPATCH_RE.search(msg_no_explanation))
+            or 'stop by' in msg_no_explanation
+            or 'come by' in msg_no_explanation
+            or 'come to' in msg_no_explanation
+        )
+        if not _STRONG_BOOKING_RE.search(msg_no_explanation) and not asking_for_a_visit:
             return 'ignore', 'real-time truck location inquiry — no useful follow-up'
+
+    # Tracking a truck already booked for an event (not a live "where is it").
+    # Runs after location/app guards so "use the app" stays ignore.
+    if _TRACK_EXISTING_RE.search(f'{msg_lower} {summary_lower}'):
+        return 'email', _PURPOSE_EMAIL_REASONS['track_existing']
 
     # Known staff name → email only no matter what else is in the message.
     # Caller intent is to reach a person; that's email, not a booking.
