@@ -199,6 +199,14 @@ def test_known_staff_name_is_email_not_jobber():
     assert action == 'email', (action, reason)
 
 
+def test_unclaim_call_drops_from_processed_ids():
+    from main import _unclaim_call
+    ids = {'call_abc': 1, 'call_keep': 2}
+    _unclaim_call('call_abc', ids)
+    assert 'call_abc' not in ids
+    assert ids['call_keep'] == 2
+
+
 if __name__ == '__main__':
     import traceback
     tests = [v for k, v in globals().items() if k.startswith('test_')]

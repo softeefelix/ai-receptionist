@@ -39,8 +39,8 @@ _load_dotenv()
 
 RETELL_API_KEY       = os.environ['RETELL_API_KEY']
 AGENTMAIL_API_KEY    = os.environ['AGENTMAIL_API_KEY']
-AGENTMAIL_INBOX      = os.environ.get('AGENTMAIL_INBOX', 'mistersoftee-norcal@agentmail.to')
-NOTIFY_EMAIL         = os.environ.get('NOTIFY_EMAIL', 'felix@mistersofteenorcal.com')
+AGENTMAIL_INBOX      = os.environ.get('AGENTMAIL_INBOX') or 'mistersoftee-norcal@agentmail.to'
+NOTIFY_EMAIL         = os.environ.get('NOTIFY_EMAIL') or 'felix@mistersofteenorcal.com'
 JOBBER_CLIENT_ID     = os.environ['JOBBER_CLIENT_ID']
 JOBBER_CLIENT_SECRET = os.environ['JOBBER_CLIENT_SECRET']
 JOBBER_TOKENS_FILE   = Path(__file__).parent / 'jobber_tokens.json'
@@ -185,6 +185,17 @@ def save_state(state):
 # ── Dead-letter queue ─────────────────────────────────────────────────────────
 
 def load_failed():
+    db = _get_db()
+    if db:
+        cur = db.cursor()
+        cur.execute("SELECT value FROM poll_metadata WHERE key = 'failed_routes'")
+        row = cur.fetchone()
+        if row:
+            try:
+                return json.loads(row[0])
+            except json.JSONDecodeError:
+                return []
+        return []
     if not FAILED_FILE.exists():
         return []
     entries = []
@@ -195,10 +206,29 @@ def load_failed():
     return entries
 
 def save_failed(entries):
+    db = _get_db()
+    if db:
+        cur = db.cursor()
+        cur.execute("""
+            INSERT INTO poll_metadata (key, value) VALUES ('failed_routes', %s)
+            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+        """, (json.dumps(entries),))
+        db.commit()
+        return
     if entries:
         FAILED_FILE.write_text('\n'.join(json.dumps(e) for e in entries) + '\n')
     elif FAILED_FILE.exists():
         FAILED_FILE.unlink()
+
+
+def _unclaim_call(call_id, processed_ids):
+    """Undo the processed_calls claim so a failed route can retry."""
+    processed_ids.pop(call_id, None)
+    db = _get_db()
+    if db:
+        cur = db.cursor()
+        cur.execute("DELETE FROM processed_calls WHERE call_id = %s", (call_id,))
+        db.commit()
 
 
 # ── Retell ────────────────────────────────────────────────────────────────────
@@ -460,9 +490,25 @@ def send_email(subject, body_text, body_html=None):
             'Content-Type':  'application/json',
         },
     )
-    resp   = urllib.request.urlopen(req)
-    result = json.loads(resp.read())
-    print(f'[Email] Sent "{subject}" → {result.get("message_id", "?")}')
+    try:
+        resp   = urllib.request.urlopen(req)
+        result = json.loads(resp.read())
+        print(f'[Email] Sent "{subject}" → {result.get("message_id", "?")}')
+    except urllib.error.HTTPError as e:
+        detail = e.read().decode('utf-8', 'replace')[:800]
+        print(f'[Email] HTTP {e.code} {e.reason} inbox={AGENTMAIL_INBOX!r} to={NOTIFY_EMAIL!r}: {detail}')
+        # Actions has been 403ing AgentMail send all morning (2026-08-19) while
+        # Slack still works. Deliver the same payload there so the call isn't lost.
+        if e.code == 403 and SLACK_WEBHOOK_URL:
+            send_slack(
+                f':email: *Email send failed (HTTP {e.code}) — delivered here instead*\n'
+                f'*{subject}*\n```{body_text[:1500]}```'
+            )
+            print('[Email] Fell back to Slack after AgentMail 403')
+            return
+        raise urllib.error.HTTPError(
+            e.url, e.code, f'{e.reason}: {detail}', e.hdrs, None,
+        )
 
 def send_slack(text):
     """POST a message to the configured Slack webhook.
@@ -1747,6 +1793,7 @@ def poll():
             counts[action] = counts.get(action, 0) + 1
         except Exception as e:
             print(f'[Poll] Routing error for {call_id} — queuing for retry: {e}')
+            _unclaim_call(call_id, processed_ids)
             existing = load_failed()
             existing.append({
                 'call_id':       call_id,
