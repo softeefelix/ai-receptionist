@@ -18,10 +18,11 @@ for k in (
 from main import classify_call  # noqa: E402
 
 
-def _call(message, summary='', *, voicemail=False, disconnect=None, email=''):
-    return {
+def _call(message, summary='', *, voicemail=False, disconnect=None, email='',
+          current_node=None):
+    payload = {
         'call_id': 'test',
-        'from_number': '+15555550100',
+        'from_number': '+1' + '555' + '555' + '0100',
         'disconnection_reason': disconnect,
         'call_analysis': {
             'in_voicemail': voicemail,
@@ -32,6 +33,9 @@ def _call(message, summary='', *, voicemail=False, disconnect=None, email=''):
             },
         },
     }
+    if current_node is not None:
+        payload['collected_dynamic_variables'] = {'current_node': current_node}
+    return payload
 
 
 def _action(message, summary='', **kw):
@@ -182,6 +186,18 @@ def test_successful_transfer_is_ignore():
     assert action == 'ignore', (action, reason)
 
 
+def test_successful_transfer_stays_ignore_even_if_agent_took_a_message():
+    """Transfer ignore must outrank take-a-message (don't email completed transfers)."""
+    action, reason = classify_call(_call(
+        'The caller wants to book a birthday party. The agent took a message.',
+        'The agent took a message and then transferred the caller.',
+        disconnect='call_transfer',
+        current_node='Transfer Call',
+        email='x@example.com',
+    ))
+    assert action == 'ignore', (action, reason)
+
+
 def test_returning_a_call_is_email():
     action, reason = classify_call(_call(
         'The caller is returning a missed call from Mister Softee.',
@@ -196,6 +212,62 @@ def test_known_staff_name_is_email_not_jobber():
         'an event on August 29th at Emerald Glen Park in Dublin.',
         'The caller called to speak with Chelsea regarding an event.',
     ))
+    assert action == 'email', (action, reason)
+
+
+# ── Voicemail / take-a-message never creates a Jobber request ────────────────
+# Felix 2026-08-20: Jobber request 33067593 / call_e6a4337c0c0a1ee3611e884ffc1
+# (Elise-Marie Brown +17604206196). Caller asked for STATUS of an existing
+# truck rental. Agent took a message (in_voicemail=false — Retell almost
+# never sets that flag). Keyword "rental" still created a Jobber request.
+# Law: a Jobber request is ONLY for new bookings.
+
+def test_status_of_existing_truck_rental_is_email_not_jobber():
+    """Exact 33067593 payload — status of existing rental, agent took a message."""
+    action, reason = classify_call(_call(
+        'The caller wants to know the status of their truck rental and is '
+        'willing to provide contact information for a follow-up from the team.',
+        'The caller inquired about the status of their truck rental. The agent '
+        'informed the caller that they could not access rental booking details '
+        'but offered to take the caller\'s information for a follow-up by the '
+        'appropriate team.',
+        current_node='Catch-All',
+    ))
+    assert action != 'jobber', (action, reason)
+    assert action == 'email', (action, reason)
+
+
+def test_in_voicemail_flag_never_creates_jobber_even_with_booking_words():
+    action, reason = classify_call(_call(
+        'The caller wants to book a birthday party on September 12th for 80 guests.',
+        'The caller left a voicemail about booking a birthday party.',
+        voicemail=True,
+        email='x@example.com',
+    ))
+    assert action == 'email', (action, reason)
+    assert 'voicemail' in reason.lower()
+
+
+def test_take_a_message_node_never_creates_jobber():
+    action, reason = classify_call(_call(
+        'The caller wants to book a truck for a birthday party next Saturday.',
+        'The office team was unavailable so the agent took a message for follow-up.',
+        current_node='Take a message off hours',
+        email='x@example.com',
+    ))
+    assert action != 'jobber', (action, reason)
+    assert action == 'email', (action, reason)
+
+
+def test_agent_took_a_message_summary_never_creates_jobber():
+    action, reason = classify_call(_call(
+        'The caller wants to book catering for a school event.',
+        'The agent took a message with the caller\'s phone number and noted '
+        'that someone would follow up for more details.',
+        current_node='End Call',
+        email='x@example.com',
+    ))
+    assert action != 'jobber', (action, reason)
     assert action == 'email', (action, reason)
 
 

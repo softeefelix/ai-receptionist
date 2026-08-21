@@ -927,6 +927,27 @@ _ALREADY_BOOKED_RE = re.compile(
     r'|\ban event (?:she|he|they) has already booked\b'
     r'|\bexisting (?:booking|reservation|appointment)\b'
     r'|\b(?:their|his|her|my|our) (?:upcoming |existing |current )?(?:reservation|booking)\b'
+    # Status of an existing rental/booking is follow-up, not a new Jobber request.
+    # 33067593 / call_e6a4337c0c0a1ee3611e884ffc1: "status of their truck rental"
+    r'|\bstatus of (?:their|his|her|my|our|the) .{0,30}?(?:rental|booking|reservation)\b'
+    r'|\b(?:their|his|her|my|our) (?:truck )?rental\b'
+)
+
+# Retell almost never sets in_voicemail. The live "voicemail path" is the
+# take-a-message flow: agent couldn't complete a booking, so a human must
+# call back. Those must never create a Jobber request (Felix 2026-08-20:
+# request 33067593). Node names from FLOW_MAP.md; text covers Catch-All /
+# End Call where the agent still took a message.
+_TAKE_A_MESSAGE_NODE_PREFIX = 'take a message'
+_TAKE_A_MESSAGE_RE = re.compile(
+    r'\btook a message\b'
+    r'|\btake a message\b'
+    r'|\btaking a message\b'
+    r'|\bleft a message\b'
+    r'|\bleaving a message\b'
+    r'|\boffered to take (?:a message|the caller.?s information|down .{0,40}?(?:info|information|details))\b'
+    r'|\btake down (?:your|the caller.?s) (?:info|information|details)\b'
+    r'|\btake the caller.?s information\b'
 )
 _QUOTE_FOLLOWUP_RE = re.compile(
     r'\bfollow(?:ing)? up on (?:a |the |her |his |their )?(?:quote|estimate)\b'
@@ -1261,6 +1282,21 @@ def classify_call(call):
         if not booking_kw:
             # Truck-dispatch phrase only, no booking specifics → email for follow-up
             return 'email', 'bare truck request — no booking details; needs ops callback, not Jobber'
+        # Voicemail-context: Retell almost never sets in_voicemail. The live
+        # path is take-a-message (node name or "took a message" in the
+        # summary). Those are callbacks for a human — never a new Jobber
+        # request. Felix 2026-08-20: request 33067593 /
+        # call_e6a4337c0c0a1ee3611e884ffc1 ("status of their truck rental")
+        # because "rental" hit booking keywords after in_voicemail=false.
+        # Successful transfers already returned ignore above; this gate
+        # only blocks Jobber creation.
+        current_node = (
+            (call.get('collected_dynamic_variables') or {}).get('current_node') or ''
+        ).strip().lower()
+        if current_node.startswith(_TAKE_A_MESSAGE_NODE_PREFIX):
+            return 'email', 'voicemail-context: take-a-message node — callback, not a new booking'
+        if _TAKE_A_MESSAGE_RE.search(f'{msg_lower} {summary_lower}'):
+            return 'email', 'voicemail-context: agent took a message — callback, not a new booking'
         return 'jobber', 'booking/service keywords detected'
 
     # Caller left a substantive message but no booking intent → email.
