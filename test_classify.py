@@ -152,6 +152,24 @@ def test_stop_by_office_today_is_not_location_ignore():
     assert action != 'ignore', (action, reason)
 
 
+def test_locate_truck_and_private_event_access_is_not_jobber():
+    """Exact 33065536 / call_32b878a4d3fa02a34b8096e8730 — locate via app +
+    'can I visit a truck during a private event'. Not a rental/booking."""
+    action, reason = classify_call(_call(
+        'The caller wanted to locate a Mister Softee truck using the app and asked '
+        'if they could visit a truck during a private event, seeking clarification '
+        'on access during such events.',
+        'The caller inquired about locating a Mister Softee truck and was advised '
+        'to use the MisterSofteeNorCal app for real-time locations. The caller also '
+        'asked if they could visit a truck during a private event, but the agent '
+        'did not have that information and offered to have someone from the team '
+        'follow up.',
+        current_node='Catch-All',
+    ))
+    assert action != 'jobber', (action, reason)
+    assert action == 'email', (action, reason)
+
+
 # ── Real new bookings still go to Jobber ─────────────────────────────────────
 
 def test_new_birthday_booking_with_details_is_jobber():

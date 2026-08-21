@@ -770,6 +770,29 @@ _LOCATION_INQUIRY_RE = re.compile(
     r'|\btruck currently in\b'
 )
 
+# "wanted to locate a truck" — Retell phrasing that _LOCATION_INQUIRY_RE missed
+# (33065536 / call_32b878a4d3fa02a34b8096e8730).
+_LOCATE_TRUCK_RE = re.compile(
+    r'\b(?:wanted|wants|wanting|trying)\s+to\s+locate\s+'
+    r'(?:a\s+|the\s+)?(?:mister\s+softee\s+)?(?:ice\s+cream\s+)?(?:truck|trucks)\b'
+    r'|\binquired about locating\s+(?:a\s+|the\s+)?'
+    r'(?:mister\s+softee\s+)?(?:ice\s+cream\s+)?(?:truck|trucks)\b'
+)
+
+# Asking whether the public can visit a truck that is already at a private
+# event is a policy/access question, not a request to book that event.
+# "private" is in _STRONG_BOOKING_KEYWORDS and otherwise forces Jobber.
+_PRIVATE_EVENT_ACCESS_RE = re.compile(
+    r'\b(?:visit|go to|access)\s+(?:a\s+|the\s+)?'
+    r'(?:mister\s+softee\s+)?(?:ice\s+cream\s+)?truck\b.{0,40}?'
+    r'(?:during|at|if)\s+(?:a\s+|an\s+|there.s\s+|it.s\s+)?'
+    r'private\s+event\b'
+    r'|\bduring a private event\b'
+    r'|\bat a private event\b'
+    r'|\bif (?:there.s|it.s|its) a private event\b'
+    r'|\baccess during such events\b'
+)
+
 # Caller wants service "right now" from a truck they can see / that's nearby.
 # Jobber requests are future-looking; immediate-intent calls go to email so
 # a human can respond fast (or explain we don't do on-demand). Strong booking
@@ -1101,9 +1124,13 @@ def classify_call(call):
     # know the location of a wedding truck" → Jobber), but scrub agent-
     # explanation phrasing first so "would require a private event booking"
     # doesn't falsely override a genuine location inquiry.
-    if _LOCATION_INQUIRY_RE.search(msg_lower):
+    if _LOCATION_INQUIRY_RE.search(msg_lower) or _LOCATE_TRUCK_RE.search(msg_lower) or _LOCATE_TRUCK_RE.search(summary_lower):
         msg_no_explanation = _AGENT_BOOKING_EXPLANATION_RE.sub('', msg_lower)
         msg_no_explanation = _NEGATED_EVENT_RE.sub('', msg_no_explanation)
+        # Do NOT strip private-event ACCESS phrasing here — "private" must
+        # still block the location-ignore return so the access question
+        # can email (33065536). Negated "not at a private event" is already
+        # stripped by _NEGATED_EVENT_RE.
         # "where's the truck" that also asks us to send/stop-by is a dispatch,
         # not a map lookup — don't ignore those.
         asking_for_a_visit = (
@@ -1114,6 +1141,16 @@ def classify_call(call):
         )
         if not _STRONG_BOOKING_RE.search(msg_no_explanation) and not asking_for_a_visit:
             return 'ignore', 'real-time truck location inquiry — no useful follow-up'
+        # Locate-truck + "can I visit during a private event" is access policy,
+        # not a booking (33065536). Strong booking leftover is just "private".
+        combined_no_access = _PRIVATE_EVENT_ACCESS_RE.sub('', f'{msg_lower} {summary_lower}')
+        if _PRIVATE_EVENT_ACCESS_RE.search(f'{msg_lower} {summary_lower}') and not asking_for_a_visit:
+            leftover = _AGENT_BOOKING_EXPLANATION_RE.sub('', combined_no_access)
+            leftover = _NEGATED_EVENT_RE.sub('', leftover)
+            leftover = _LOCATE_TRUCK_RE.sub('', leftover)
+            leftover = _LOCATION_INQUIRY_RE.sub('', leftover)
+            if not _NEW_BOOKING_INTENT_RE.search(leftover):
+                return 'email', 'location + private-event access question — not a new booking'
 
     # Tracking a truck already booked for an event (not a live "where is it").
     # Runs after location/app guards so "use the app" stays ignore.
