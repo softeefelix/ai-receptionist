@@ -7,6 +7,7 @@ truck tracking, already-booked logistics).
 """
 
 import os
+import urllib.error
 
 # main.py requires these at import time
 for k in (
@@ -295,6 +296,39 @@ def test_unclaim_call_drops_from_processed_ids():
     _unclaim_call('call_abc', ids)
     assert 'call_abc' not in ids
     assert ids['call_keep'] == 2
+
+
+def test_agentmail_403_and_429_fall_back_to_slack(monkeypatch=None):
+    """Daily-cap 429 must not crash the poller — Slack is the delivery path."""
+    import io
+    import main as m
+
+    slacked = []
+
+    class FakeHTTPError(urllib.error.HTTPError):
+        def __init__(self, code, body):
+            super().__init__(
+                'https://api.agentmail.to/v0/inboxes/x/messages/send',
+                code, 'Too Many Requests', hdrs=None, fp=io.BytesIO(body.encode()),
+            )
+
+    def boom(_req):
+        raise FakeHTTPError(429, '{"code":"rate_limit_exceeded","message":"Daily send limit exceeded"}')
+
+    orig_urlopen = m.urllib.request.urlopen
+    orig_slack = m.send_slack
+    orig_hook = m.SLACK_WEBHOOK_URL
+    m.urllib.request.urlopen = boom
+    m.send_slack = lambda text: slacked.append(text)
+    m.SLACK_WEBHOOK_URL = 'https://hooks.slack.com/test'
+    try:
+        m.send_email('subj', 'body text here')
+    finally:
+        m.urllib.request.urlopen = orig_urlopen
+        m.send_slack = orig_slack
+        m.SLACK_WEBHOOK_URL = orig_hook
+    assert slacked, '429 must Slack-fallback instead of raising'
+    assert 'HTTP 429' in slacked[0]
 
 
 if __name__ == '__main__':

@@ -497,14 +497,15 @@ def send_email(subject, body_text, body_html=None):
     except urllib.error.HTTPError as e:
         detail = e.read().decode('utf-8', 'replace')[:800]
         print(f'[Email] HTTP {e.code} {e.reason} inbox={AGENTMAIL_INBOX!r} to={NOTIFY_EMAIL!r}: {detail}')
-        # Actions has been 403ing AgentMail send all morning (2026-08-19) while
-        # Slack still works. Deliver the same payload there so the call isn't lost.
-        if e.code == 403 and SLACK_WEBHOOK_URL:
+        # 403: account paused. 429: org daily send cap (currently 100/day).
+        # Slack still works — deliver there so the call isn't lost and the
+        # poller does not crash before save_state() / last_run_at.
+        if e.code in (403, 429) and SLACK_WEBHOOK_URL:
             send_slack(
                 f':email: *Email send failed (HTTP {e.code}) — delivered here instead*\n'
                 f'*{subject}*\n```{body_text[:1500]}```'
             )
-            print('[Email] Fell back to Slack after AgentMail 403')
+            print(f'[Email] Fell back to Slack after AgentMail {e.code}')
             return
         raise urllib.error.HTTPError(
             e.url, e.code, f'{e.reason}: {detail}', e.hdrs, None,
@@ -1750,18 +1751,31 @@ def _retry_failed(processed_ids):
             print(f'[Retry] {call_id} succeeded on attempt {attempts}')
         except Exception as e:
             print(f'[Retry] {call_id} failed again (attempt {attempts}): {e}')
-            if attempts >= 3:
+            err = str(e)
+            daily_cap = 'rate_limit_exceeded' in err or 'Daily send limit' in err
+            if attempts >= 3 or daily_cap:
                 notes = _format_notes(entry['call'])
-                send_email(
-                    f'[Mister Softee] Routing failed after {attempts} attempts: {call_id}',
-                    f'Could not route call after {attempts} attempts.\nLast error: {e}\n\n{notes}',
-                )
+                try:
+                    send_email(
+                        f'[Mister Softee] Routing failed after {attempts} attempts: {call_id}',
+                        f'Could not route call after {attempts} attempts. Last error: {e}\n\n{notes}',
+                    )
+                except Exception as notify_err:
+                    print(f'[Retry] exhaustion notify also failed (dropping from queue): {notify_err}')
+                    if SLACK_WEBHOOK_URL:
+                        try:
+                            send_slack(
+                                f':warning: *Routing failed after {attempts} attempts* `{call_id}`\n'
+                                f'```{(notes or err)[:1500]}```'
+                            )
+                        except Exception as slack_err:
+                            print(f'[Retry] Slack fallback also failed: {slack_err}')
             else:
                 remaining.append({
                     'call_id':       call_id,
                     'call':          entry['call'],
                     'attempts':      attempts,
-                    'last_error':    str(e),
+                    'last_error':    err,
                     'next_retry_at': now + (2 ** attempts) * 60,
                 })
 
@@ -1807,8 +1821,13 @@ def poll():
     state         = load_state()
     processed_ids = state.get('processed_ids', {})
 
-    # Retry any previously failed routes before processing new calls
-    _retry_failed(processed_ids)
+    # Retry any previously failed routes before processing new calls.
+    # Never let a dead-letter notify crash the poll — that freezes last_run_at
+    # and a watchdog will keep re-dispatching the workflow.
+    try:
+        _retry_failed(processed_ids)
+    except Exception as e:
+        print(f'[Retry] dead-letter pass crashed (continuing poll): {e}')
 
     # Look back with a 2-minute buffer to catch calls that started just before last run
     since_ts = state.get('last_run_at', 0) - 120_000
