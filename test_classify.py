@@ -20,7 +20,7 @@ from main import classify_call  # noqa: E402
 
 
 def _call(message, summary='', *, voicemail=False, disconnect=None, email='',
-          current_node=None):
+          current_node=None, transcript=None):
     payload = {
         'call_id': 'test',
         'from_number': '+1' + '555' + '555' + '0100',
@@ -34,6 +34,8 @@ def _call(message, summary='', *, voicemail=False, disconnect=None, email='',
             },
         },
     }
+    if transcript is not None:
+        payload['transcript'] = transcript
     if current_node is not None:
         payload['collected_dynamic_variables'] = {'current_node': current_node}
     return payload
@@ -177,6 +179,37 @@ def test_weibel_truck12_how_to_get_truck_here_is_not_jobber():
     ))
     assert action != 'jobber', (action, reason)
     assert action == 'email', (action, reason)
+
+
+_WEIBEL_TRANSCRIPT = """Agent: Thank you for calling Mister Softee of Northern California! How can I help you today?
+User: Find the nearest ice cream truck.
+Agent: The best way to find our trucks is the MisterSofteeNorCal app. Do you have it downloaded?
+User: What's the precise location of mister Softee truck number twelve?
+Agent: What neighborhood or area are you in?
+User: Weibel Elementary.
+Agent: The closest truck is Truck 12 in the Irvington District. If you're looking to book a truck for an event, we can put together a quote.
+User: No. That's all. Thank you.
+User: Wait.
+User: Actually, how do I get a truck to my location?
+Agent: Of course! If you're looking to book a truck for an event or a specific location, someone will put together a quote for you. Would you like to do that?
+"""
+
+
+def test_agent_pitch_in_transcript_does_not_create_jobber_when_caller_did_not_book():
+    """34727176 with the real transcript.
+
+    Summary says event/booking/quote. Caller never said those words — only
+    where is truck 12, then how do I get a truck to my location. Agent pitch
+    in the transcript must not create a Jobber request.
+    """
+    action, reason = classify_call(_call(
+        'The caller asked how to get a truck to their location for an event, '
+        'seeking assistance with booking and a quote.',
+        'The user asked about booking a truck for a specific location and a quote.',
+        transcript=_WEIBEL_TRANSCRIPT,
+        current_node='End Call',
+    ))
+    assert action != 'jobber', (action, reason)
 
 
 def test_locate_truck_and_private_event_access_is_not_jobber():

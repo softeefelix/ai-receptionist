@@ -1077,6 +1077,22 @@ def _is_same_day_event(call):
     return has_same_day and has_event
 
 
+def _caller_utterances(transcript):
+    """Spoken User: lines only. Agent pitch in the same transcript is ignored.
+
+    Retell transcripts are 'User:' / 'Agent:' lines. Tool markup and agent
+    lines are not caller intent. Empty string when there is no transcript.
+    """
+    if not transcript:
+        return ''
+    lines = []
+    for raw in transcript.splitlines():
+        line = raw.strip()
+        if line.lower().startswith('user:'):
+            lines.append(line.split(':', 1)[1].strip())
+    return ' '.join(lines).lower()
+
+
 def classify_call(call):
     """Returns ('jobber' | 'slack' | 'email' | 'ignore', reason).
 
@@ -1325,6 +1341,11 @@ def classify_call(call):
     # caller said "request a truck", left no details, call dropped before contact info.)
     booking_kw = bool(_BOOKING_RE.search(msg_lower))
     truck_dispatch = bool(_TRUCK_DISPATCH_RE.search(msg_lower))
+    caller_said = _caller_utterances(call.get('transcript') or '')
+    # Jobber requires the caller to have said the booking words. Agent pitch
+    # copied into caller_message / summary is not a booking (34727176).
+    if caller_said and not _BOOKING_RE.search(caller_said):
+        booking_kw = False
     if booking_kw or truck_dispatch:
         # Same-day events need an immediate response, not a Jobber ticket
         if _is_same_day_event(call):
