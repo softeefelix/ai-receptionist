@@ -153,6 +153,32 @@ def test_stop_by_office_today_is_not_location_ignore():
     assert action != 'ignore', (action, reason)
 
 
+def test_weibel_truck12_how_to_get_truck_here_is_not_jobber():
+    """Exact 34727176 / call_c1e6e5b88a78887c53d705fa315.
+
+    Caller asked where truck 12 was (Weibel Elementary), then 'how do I get
+    a truck to my location?'. They never booked an event. Retell's summary
+    copied the agent's quote pitch ('for an event', 'booking', 'quote') into
+    caller_message; those words must not create a Jobber request.
+    """
+    action, reason = classify_call(_call(
+        'The caller wanted to find the precise location of Mister Softee '
+        'truck number twelve near Weibel Elementary and asked how to get a '
+        'truck to their location for an event, seeking assistance with '
+        'booking and a quote.',
+        'The user called Mister Softee of Northern California to find the '
+        'nearest ice cream truck and inquired about truck number twelve\'s '
+        'location near Weibel Elementary. The agent provided the closest '
+        'truck\'s location and suggested using the app for real-time '
+        'tracking. The user also asked about booking a truck for a specific '
+        'location, and the agent offered to have the team contact them for '
+        'details and a quote.',
+        current_node='End Call',
+    ))
+    assert action != 'jobber', (action, reason)
+    assert action == 'email', (action, reason)
+
+
 def test_locate_truck_and_private_event_access_is_not_jobber():
     """Exact 33065536 / call_32b878a4d3fa02a34b8096e8730 — locate via app +
     'can I visit a truck during a private event'. Not a rental/booking."""

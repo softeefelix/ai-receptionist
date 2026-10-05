@@ -735,6 +735,22 @@ _AGENT_BOOKING_EXPLANATION_RE = re.compile(
     r'|\b(?:public\s+and\s+)?private\s+event\s+locations?\b'
 )
 
+# Agent sales close copied into caller_message / summary by Retell after a live
+# location lookup (34727176 / call_c1e6e5b88a78887c53d705fa315). The caller
+# asked "how do I get a truck to my location?" — they did not book an event.
+# Strip this pitch before testing _STRONG_BOOKING_RE in location context.
+_AGENT_QUOTE_PITCH_RE = re.compile(
+    r'\bfor an event\b'
+    r'|\bseeking assistance with booking(?: and a quote)?\b'
+    r'|\b(?:asked|asking) about booking a truck(?: for a specific location)?\b'
+    r'|\bthe (?:user|caller) also asked about booking a truck\b'
+    r'|\b(?:offered to have the team contact them for |contact them for )'
+    r'details and a quote\b'
+    r'|\bput together a quote\b'
+    r'|\bbooking and a quote\b'
+    r'|\bassistance with booking\b'
+)
+
 # Negated-event descriptors: the caller is asking for a truck that is NOT booked
 # at an event (i.e. a public / roaming truck) — the OPPOSITE of booking intent.
 # "where to find a truck that is not at a private event" is a location inquiry;
@@ -1127,6 +1143,7 @@ def classify_call(call):
     # doesn't falsely override a genuine location inquiry.
     if _LOCATION_INQUIRY_RE.search(msg_lower) or _LOCATE_TRUCK_RE.search(msg_lower) or _LOCATE_TRUCK_RE.search(summary_lower):
         msg_no_explanation = _AGENT_BOOKING_EXPLANATION_RE.sub('', msg_lower)
+        msg_no_explanation = _AGENT_QUOTE_PITCH_RE.sub('', msg_no_explanation)
         msg_no_explanation = _NEGATED_EVENT_RE.sub('', msg_no_explanation)
         # Do NOT strip private-event ACCESS phrasing here — "private" must
         # still block the location-ignore return so the access question
@@ -1141,6 +1158,10 @@ def classify_call(call):
             or 'come to' in msg_no_explanation
         )
         if not _STRONG_BOOKING_RE.search(msg_no_explanation) and not asking_for_a_visit:
+            # "how's the nearest truck" + "how do I get a truck here" is a
+            # process question the agent pitched as a booking. Callback, not ignore.
+            if any(phrase in msg_no_explanation for phrase in _PROCESS_INQUIRY_PHRASES):
+                return 'email', 'location + how-to-get-a-truck process question — not a new booking'
             return 'ignore', 'real-time truck location inquiry — no useful follow-up'
         # Locate-truck + "can I visit during a private event" is access policy,
         # not a booking (33065536). Strong booking leftover is just "private".
